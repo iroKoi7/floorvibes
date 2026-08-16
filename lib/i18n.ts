@@ -19,6 +19,7 @@ export const text = {
     dismiss: "Dismiss",
     djDashboard: "DJ Dashboard",
     dropTrack: "Drop your next track.",
+    event: "Event",
     floorVibesLive: "FloorVibes Live",
     loadingRequests: "Loading requests...",
     localMode:
@@ -31,6 +32,7 @@ export const text = {
     requestedBy: "Requested by",
     savedForSession: "Saved for 3 hours on this device.",
     selectActiveDj: "Select active DJ",
+    selectEvent: "Select event",
     selectTargetDj: "Select target DJ",
     share: "Share",
     shareAudienceLink: "Audience link",
@@ -55,6 +57,7 @@ export const text = {
     dismiss: "非表示",
     djDashboard: "DJダッシュボード",
     dropTrack: "次に聴きたい曲を送ろう。",
+    event: "イベント",
     floorVibesLive: "FloorVibes Live",
     loadingRequests: "リクエストを読み込み中...",
     localMode:
@@ -67,6 +70,7 @@ export const text = {
     requestedBy: "リクエストした人",
     savedForSession: "この端末で3時間だけ保存されます。",
     selectActiveDj: "担当DJを選択",
+    selectEvent: "イベントを選択",
     selectTargetDj: "送り先DJを選択",
     share: "共有",
     shareAudienceLink: "Audience共有リンク",

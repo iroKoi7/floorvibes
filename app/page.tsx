@@ -8,11 +8,18 @@ import { Input } from "@/components/ui/input";
 import { LanguageToggle } from "@/components/language-toggle";
 import { LocalModeNotice } from "@/components/local-mode-notice";
 import { Select } from "@/components/ui/select";
-import { DEFAULT_DJ, DJ_NAMES, type DjName } from "@/lib/djs";
+import {
+  DEFAULT_EVENT_SLUG,
+  getActiveEvents,
+  getDjsForEvent,
+  getEventBySlug,
+} from "@/lib/event-store";
 import { isLanguage, LANGUAGE_STORAGE_KEY, text, type Language } from "@/lib/i18n";
 import { createRequest, isUsingMockRequests } from "@/lib/request-store";
+import type { DjRow, EventRow } from "@/lib/types";
 
-const AUDIENCE_DJ_STORAGE_KEY = "floorvibes:audience-dj";
+const AUDIENCE_EVENT_STORAGE_KEY = "floorvibes:audience-event";
+const AUDIENCE_DJ_STORAGE_KEY = "floorvibes:audience-dj-id";
 const AUDIENCE_SESSION_STORAGE_KEY = "floorvibes:audience-session";
 const REQUEST_COOLDOWN_STORAGE_KEY = "floorvibes:last-request-at";
 const REQUEST_COOLDOWN_MS = 30 * 1000;
@@ -23,33 +30,29 @@ type AudienceSession = {
   expiresAt: number;
 };
 
-function isDjName(value: string): value is DjName {
-  return DJ_NAMES.some((name) => name === value);
-}
+type AudiencePageProps = {
+  fixedEventSlug?: string;
+};
 
-export default function AudiencePage() {
+export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [songTitle, setSongTitle] = useState("");
   const [audienceName, setAudienceName] = useState("");
-  const [djName, setDjName] = useState<DjName>(DEFAULT_DJ);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [djs, setDjs] = useState<DjRow[]>([]);
+  const [eventId, setEventId] = useState("");
+  const [djId, setDjId] = useState("");
+  const [eventSlug, setEventSlug] = useState(DEFAULT_EVENT_SLUG);
   const [language, setLanguage] = useState<Language>("en");
   const [isSending, setIsSending] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const copy = text[language];
   const isCoolingDown = cooldownRemaining > 0;
+  const selectedEvent = events.find((event) => event.id === eventId) ?? null;
+  const selectedDj = djs.find((dj) => dj.id === djId) ?? null;
+  const djName = selectedDj?.name ?? copy.loadingRequests;
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlDjName = params.get("dj");
-    const savedDjName = window.localStorage.getItem(AUDIENCE_DJ_STORAGE_KEY);
-
-    if (urlDjName && isDjName(urlDjName)) {
-      setDjName(urlDjName);
-      window.localStorage.setItem(AUDIENCE_DJ_STORAGE_KEY, urlDjName);
-    } else if (savedDjName && isDjName(savedDjName)) {
-      setDjName(savedDjName);
-    }
-
     const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
     if (isLanguage(savedLanguage)) {
       setLanguage(savedLanguage);
@@ -71,6 +74,58 @@ export default function AudiencePage() {
   }, []);
 
   useEffect(() => {
+    async function loadEvents() {
+      const params = new URLSearchParams(window.location.search);
+      const urlEventSlug = fixedEventSlug ?? params.get("event");
+      const savedEventSlug = window.localStorage.getItem(AUDIENCE_EVENT_STORAGE_KEY);
+      const preferredSlug = urlEventSlug || savedEventSlug || DEFAULT_EVENT_SLUG;
+
+      const [{ data: activeEvents }, { data: urlEvent }] = await Promise.all([
+        fixedEventSlug ? Promise.resolve({ data: [] }) : getActiveEvents(),
+        getEventBySlug(preferredSlug),
+      ]);
+
+      const nextEvents = fixedEventSlug && urlEvent
+        ? [urlEvent]
+        : activeEvents.length
+          ? activeEvents
+          : urlEvent
+            ? [urlEvent]
+            : [];
+      const nextEvent = urlEvent ?? nextEvents[0] ?? null;
+      setEvents(nextEvents);
+
+      if (nextEvent) {
+        setEventId(nextEvent.id);
+        setEventSlug(nextEvent.slug);
+        window.localStorage.setItem(AUDIENCE_EVENT_STORAGE_KEY, nextEvent.slug);
+      }
+    }
+
+    void loadEvents();
+  }, [fixedEventSlug]);
+
+  useEffect(() => {
+    if (!eventId) return;
+
+    async function loadDjs() {
+      const params = new URLSearchParams(window.location.search);
+      const urlDjId = params.get("dj");
+      const savedDjId = window.localStorage.getItem(AUDIENCE_DJ_STORAGE_KEY);
+      const { data } = await getDjsForEvent(eventId);
+      const nextDj = data.find((dj) => dj.id === urlDjId) ?? data.find((dj) => dj.id === savedDjId) ?? data[0] ?? null;
+
+      setDjs(data);
+      if (nextDj) {
+        setDjId(nextDj.id);
+        window.localStorage.setItem(AUDIENCE_DJ_STORAGE_KEY, nextDj.id);
+      }
+    }
+
+    void loadDjs();
+  }, [eventId]);
+
+  useEffect(() => {
     function syncCooldown() {
       const lastRequestAt = Number(window.localStorage.getItem(REQUEST_COOLDOWN_STORAGE_KEY));
       if (!lastRequestAt) {
@@ -90,9 +145,9 @@ export default function AudiencePage() {
     return () => window.clearInterval(interval);
   }, []);
 
-  function handleDjChange(nextDjName: DjName) {
-    setDjName(nextDjName);
-    window.localStorage.setItem(AUDIENCE_DJ_STORAGE_KEY, nextDjName);
+  function handleDjChange(nextDjId: string) {
+    setDjId(nextDjId);
+    window.localStorage.setItem(AUDIENCE_DJ_STORAGE_KEY, nextDjId);
   }
 
   function handleLanguageChange(nextLanguage: Language) {
@@ -124,7 +179,7 @@ export default function AudiencePage() {
 
     const trimmedSong = songTitle.trim();
     const trimmedName = audienceName.trim();
-    if (!trimmedSong || !trimmedName) return;
+    if (!trimmedSong || !trimmedName || !selectedDj) return;
 
     if (isCoolingDown) {
       setToast(`${copy.cooldownMessage} ${cooldownRemaining} ${copy.cooldownSeconds}`);
@@ -133,7 +188,9 @@ export default function AudiencePage() {
 
     setIsSending(true);
     const { errorMessage } = await createRequest({
-      dj_name: djName,
+      event_id: selectedEvent?.id ?? null,
+      dj_id: selectedDj.id,
+      dj_name: selectedDj.name,
       requested_by: trimmedName,
       song_title: trimmedSong,
       status: "pending",
@@ -214,12 +271,12 @@ export default function AudiencePage() {
                   id="dj"
                   aria-label={copy.selectTargetDj}
                   className="min-h-14 text-base"
-                  value={djName}
-                  onChange={(event) => handleDjChange(event.target.value as DjName)}
+                  value={djId}
+                  onChange={(event) => handleDjChange(event.target.value)}
                 >
-                  {DJ_NAMES.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
+                  {djs.map((dj) => (
+                    <option key={dj.id} value={dj.id}>
+                      {dj.name}
                     </option>
                   ))}
                 </Select>
@@ -254,7 +311,13 @@ export default function AudiencePage() {
               />
               <Button
                 className="w-full"
-                disabled={!songTitle.trim() || !audienceName.trim() || isSending || isCoolingDown}
+                disabled={
+                  !songTitle.trim() ||
+                  !audienceName.trim() ||
+                  !selectedDj ||
+                  isSending ||
+                  isCoolingDown
+                }
                 type="submit"
               >
                 <Send className="h-5 w-5" aria-hidden="true" />
@@ -263,8 +326,8 @@ export default function AudiencePage() {
                   : isSending
                   ? copy.sending
                   : language === "ja"
-                    ? `${djName} に${copy.sendRequest}`
-                    : `${copy.sendRequestTo} ${djName}`}
+                    ? `${selectedDj?.name ?? ""} に${copy.sendRequest}`
+                    : `${copy.sendRequestTo} ${selectedDj?.name ?? ""}`}
               </Button>
               {isCoolingDown ? (
                 <p className="text-center text-xs font-bold text-pink-100/80">
@@ -290,3 +353,5 @@ export default function AudiencePage() {
     </main>
   );
 }
+
+export default AudiencePage;

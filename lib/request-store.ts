@@ -7,6 +7,11 @@ const MOCK_EVENT_NAME = "floorvibes:mock-requests-changed";
 const MOCK_CHANNEL_NAME = "floorvibes-mock-requests";
 
 type ChangeCallback = () => void;
+type RequestScope = {
+  eventId?: string | null;
+  djId?: string | null;
+  djName: string;
+};
 
 function createMockId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -57,6 +62,8 @@ export async function createRequest(request: RequestInsert) {
     id: createMockId(),
     created_at: new Date().toISOString(),
     dj_name: request.dj_name,
+    event_id: request.event_id ?? null,
+    dj_id: request.dj_id ?? null,
     requested_by: request.requested_by ?? null,
     song_title: request.song_title,
     status: request.status ?? "pending",
@@ -66,14 +73,26 @@ export async function createRequest(request: RequestInsert) {
   return { errorMessage: null };
 }
 
-export async function getPendingRequests(djName: string) {
+function matchesRequestScope(request: RequestRow, scope: RequestScope) {
+  if (scope.djId) return request.dj_id === scope.djId;
+  return request.dj_name === scope.djName;
+}
+
+export async function getPendingRequests(scope: RequestScope) {
   if (supabase) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("requests")
       .select("*")
-      .eq("dj_name", djName)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
+
+    if (scope.djId) {
+      query = query.eq("dj_id", scope.djId);
+    } else {
+      query = query.eq("dj_name", scope.djName);
+    }
+
+    const { data, error } = await query;
 
     return {
       data: data ?? [],
@@ -84,7 +103,7 @@ export async function getPendingRequests(djName: string) {
   return {
     data: sortNewestFirst(
       readMockRequests().filter(
-        (request) => request.dj_name === djName && request.status === "pending",
+        (request) => matchesRequestScope(request, scope) && request.status === "pending",
       ),
     ),
     errorMessage: null,
@@ -109,27 +128,26 @@ export async function updateRequestStatus(
   return { errorMessage: null };
 }
 
-export function subscribeToRequestChanges(djName: string, onChange: ChangeCallback) {
+export function subscribeToRequestChanges(scope: RequestScope, onChange: ChangeCallback) {
   if (supabase) {
     const client = supabase;
     const handleChange = (payload: RealtimePostgresChangesPayload<RequestRow>) => {
       if (
         (payload.eventType === "INSERT" || payload.eventType === "UPDATE") &&
-        payload.new.dj_name === djName
+        matchesRequestScope(payload.new, scope)
       ) {
         onChange();
       }
     };
 
     const channel = client
-      .channel(`requests:${djName}`)
+      .channel(`requests:${scope.djId ?? scope.djName}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "requests",
-          filter: `dj_name=eq.${djName}`,
         },
         handleChange,
       )
@@ -139,7 +157,6 @@ export function subscribeToRequestChanges(djName: string, onChange: ChangeCallba
           event: "UPDATE",
           schema: "public",
           table: "requests",
-          filter: `dj_name=eq.${djName}`,
         },
         handleChange,
       )

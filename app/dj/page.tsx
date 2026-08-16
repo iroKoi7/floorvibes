@@ -8,7 +8,12 @@ import { Card } from "@/components/ui/card";
 import { LanguageToggle } from "@/components/language-toggle";
 import { LocalModeNotice } from "@/components/local-mode-notice";
 import { Select } from "@/components/ui/select";
-import { DEFAULT_DJ, DJ_NAMES, type DjName } from "@/lib/djs";
+import {
+  DEFAULT_EVENT_SLUG,
+  getActiveEvents,
+  getDjsForEvent,
+  getEventBySlug,
+} from "@/lib/event-store";
 import { isLanguage, LANGUAGE_STORAGE_KEY, text, type Language } from "@/lib/i18n";
 import {
   getPendingRequests,
@@ -16,7 +21,7 @@ import {
   subscribeToRequestChanges,
   updateRequestStatus,
 } from "@/lib/request-store";
-import type { RequestRow, RequestStatus } from "@/lib/types";
+import type { DjRow, EventRow, RequestRow, RequestStatus } from "@/lib/types";
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -25,14 +30,24 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
-export default function DjPage() {
-  const [djName, setDjName] = useState<DjName>(DEFAULT_DJ);
+type DjPageProps = {
+  fixedEventSlug?: string;
+};
+
+export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [djs, setDjs] = useState<DjRow[]>([]);
+  const [eventId, setEventId] = useState("");
+  const [djId, setDjId] = useState("");
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [language, setLanguage] = useState<Language>("en");
   const activeCount = requests.length;
   const copy = text[language];
+  const selectedEvent = events.find((event) => event.id === eventId) ?? null;
+  const selectedDj = djs.find((dj) => dj.id === djId) ?? null;
+  const djName = selectedDj?.name ?? copy.loadingRequests;
 
   useEffect(() => {
     const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -46,9 +61,60 @@ export default function DjPage() {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
   }
 
+  useEffect(() => {
+    async function loadEvents() {
+      const params = new URLSearchParams(window.location.search);
+      const urlEventSlug = fixedEventSlug ?? params.get("event");
+      const preferredSlug = urlEventSlug || DEFAULT_EVENT_SLUG;
+      const [{ data: activeEvents }, { data: urlEvent }] = await Promise.all([
+        fixedEventSlug ? Promise.resolve({ data: [] }) : getActiveEvents(),
+        getEventBySlug(preferredSlug),
+      ]);
+      const nextEvents = fixedEventSlug && urlEvent
+        ? [urlEvent]
+        : activeEvents.length
+          ? activeEvents
+          : urlEvent
+            ? [urlEvent]
+            : [];
+      const nextEvent = urlEvent ?? nextEvents[0] ?? null;
+
+      setEvents(nextEvents);
+      if (nextEvent) setEventId(nextEvent.id);
+    }
+
+    void loadEvents();
+  }, [fixedEventSlug]);
+
+  useEffect(() => {
+    if (!eventId) return;
+
+    async function loadDjs() {
+      const params = new URLSearchParams(window.location.search);
+      const urlDjId = params.get("dj");
+      const { data } = await getDjsForEvent(eventId);
+      const nextDj = data.find((dj) => dj.id === urlDjId) ?? data[0] ?? null;
+
+      setDjs(data);
+      setDjId(nextDj?.id ?? "");
+    }
+
+    void loadDjs();
+  }, [eventId]);
+
   const loadRequests = useCallback(async () => {
+    if (!selectedDj) {
+      setRequests([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
-    const { data, errorMessage } = await getPendingRequests(djName);
+    const { data, errorMessage } = await getPendingRequests({
+      eventId: selectedEvent?.id ?? null,
+      djId: selectedDj.id,
+      djName: selectedDj.name,
+    });
 
     if (errorMessage) {
       setErrorMessage(errorMessage);
@@ -59,17 +125,26 @@ export default function DjPage() {
     }
 
     setIsLoading(false);
-  }, [djName]);
+  }, [selectedDj, selectedEvent]);
 
   useEffect(() => {
     void loadRequests();
   }, [loadRequests]);
 
   useEffect(() => {
-    return subscribeToRequestChanges(djName, () => {
-      void loadRequests();
-    });
-  }, [djName, loadRequests]);
+    if (!selectedDj) return;
+
+    return subscribeToRequestChanges(
+      {
+        eventId: selectedEvent?.id ?? null,
+        djId: selectedDj.id,
+        djName: selectedDj.name,
+      },
+      () => {
+        void loadRequests();
+      },
+    );
+  }, [loadRequests, selectedDj, selectedEvent]);
 
   async function updateStatus(id: string, status: Exclude<RequestStatus, "pending">) {
     setRequests((current) => current.filter((request) => request.id !== id));
@@ -97,12 +172,12 @@ export default function DjPage() {
             <div className="w-36 sm:w-52">
               <Select
                 aria-label={copy.selectActiveDj}
-                value={djName}
-                onChange={(event) => setDjName(event.target.value as DjName)}
+                value={djId}
+                onChange={(event) => setDjId(event.target.value)}
               >
-                {DJ_NAMES.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
+                {djs.map((dj) => (
+                  <option key={dj.id} value={dj.id}>
+                    {dj.name}
                   </option>
                 ))}
               </Select>
@@ -131,7 +206,14 @@ export default function DjPage() {
         {isUsingMockRequests ? <LocalModeNotice message={copy.localMode} /> : null}
 
         <div className="mt-4">
-          <AudienceShareCard djName={djName} language={language} />
+          {selectedEvent && selectedDj ? (
+            <AudienceShareCard
+              eventSlug={selectedEvent.slug}
+              djId={selectedDj.id}
+              djName={selectedDj.name}
+              language={language}
+            />
+          ) : null}
         </div>
 
         {errorMessage ? (
@@ -198,3 +280,5 @@ export default function DjPage() {
     </main>
   );
 }
+
+export default DjPage;

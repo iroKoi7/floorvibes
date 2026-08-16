@@ -5,24 +5,26 @@ import QRCode from "qrcode";
 import { Copy, QrCode, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import type { DjName } from "@/lib/djs";
 import type { Language } from "@/lib/i18n";
 import { text } from "@/lib/i18n";
 
 type AudienceShareCardProps = {
-  djName: DjName;
+  eventSlug: string;
+  djId: string;
+  djName: string;
   language: Language;
 };
 
-export function AudienceShareCard({ djName, language }: AudienceShareCardProps) {
+export function AudienceShareCard({ eventSlug, djId, djName, language }: AudienceShareCardProps) {
   const copy = text[language];
   const [origin, setOrigin] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const audienceUrl = useMemo(() => {
     if (!origin) return "";
-    return `${origin}/?dj=${encodeURIComponent(djName)}`;
-  }, [djName, origin]);
+    const params = new URLSearchParams({ dj: djId });
+    return `${origin}/e/${encodeURIComponent(eventSlug)}?${params.toString()}`;
+  }, [djId, eventSlug, origin]);
 
   useEffect(() => {
     setOrigin(window.location.origin);
