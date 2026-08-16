@@ -3,6 +3,7 @@ export type RequestStatus = "pending" | "played" | "dismissed";
 export type EventRow = {
   id: string;
   created_at: string;
+  owner_id: string | null;
   name: string;
   slug: string;
   starts_at: string | null;
@@ -11,6 +12,7 @@ export type EventRow = {
 };
 
 export type EventInsert = {
+  owner_id?: string | null;
   name: string;
   slug: string;
   starts_at?: string | null;

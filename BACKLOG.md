@@ -2,12 +2,10 @@
 
 ## Before Field Test
 
-- Admin login
-  - Keep Audience and DJ routes public.
-  - Require login for `/admin`, `/admin/create`, and `/admin/edit/*`.
-  - Scope events to the logged-in admin user.
-  - Update Supabase RLS so admins can only manage their own events and DJs.
-  - Keep existing public request submission/read behavior for event audience and DJ dashboards.
+- Admin login follow-up
+  - Verify Supabase Auth email settings in production.
+  - Decide whether legacy events with `owner_id = null` should be claimed by the first admin.
+  - Consider Google login after the email/password flow is stable.
 
 - Production load check
   - Validate the app can handle a real event with 100-200 concurrent audience users plus DJ/admin usage.

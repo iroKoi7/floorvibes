@@ -28,6 +28,7 @@ function defaultEvents(): EventRow[] {
     {
       id: "mock-event-floorvibes",
       created_at: new Date().toISOString(),
+      owner_id: null,
       name: "FloorVibes Night",
       slug: DEFAULT_EVENT_SLUG,
       starts_at: null,
@@ -95,6 +96,22 @@ export async function getActiveEvents() {
 }
 
 export async function getAdminEvents() {
+  if (supabase) {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      return { data: [], errorMessage: userError?.message ?? "Admin login is required." };
+    }
+
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .eq("is_active", true)
+      .or(`owner_id.is.null,owner_id.eq.${userData.user.id}`)
+      .order("created_at", { ascending: false });
+
+    return { data: data ?? [], errorMessage: error?.message ?? null };
+  }
+
   return getActiveEvents();
 }
 
@@ -118,10 +135,16 @@ export async function getEventBySlug(slug: string) {
 
 export async function getEventById(id: string) {
   if (supabase) {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      return { data: null, errorMessage: userError?.message ?? "Admin login is required." };
+    }
+
     const { data, error } = await supabase
       .from("events")
       .select("*")
       .eq("id", id)
+      .or(`owner_id.is.null,owner_id.eq.${userData.user.id}`)
       .maybeSingle();
 
     return { data, errorMessage: error?.message ?? null };
@@ -158,9 +181,14 @@ export async function getDjsForEvent(eventId: string, includeInactive = false) {
 
 export async function createEvent(event: EventInsert) {
   if (supabase) {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      return { data: null, errorMessage: userError?.message ?? "Admin login is required." };
+    }
+
     const { data, error } = await supabase
       .from("events")
-      .insert(event)
+      .insert({ ...event, owner_id: userData.user.id })
       .select("*")
       .single();
     return { data, errorMessage: error?.message ?? null };
@@ -170,6 +198,7 @@ export async function createEvent(event: EventInsert) {
   const nextEvent: EventRow = {
     id: createMockId(),
     created_at: new Date().toISOString(),
+    owner_id: event.owner_id ?? null,
     name: event.name,
     slug: event.slug,
     starts_at: event.starts_at ?? null,

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Plus, Save, Settings2, Trash2 } from "lucide-react";
+import { AdminSignOutButton } from "@/app/admin/_components/admin-sign-out-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -215,6 +216,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
       savedEvent = {
         id: eventId,
         created_at: "",
+        owner_id: null,
         name: eventName.trim(),
         slug: eventSlug.trim(),
         starts_at: fromDateTimeLocal(startsAt),
@@ -283,9 +285,12 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
             {mode === "create" ? "Create event" : "Edit event"}
           </h1>
         </div>
-        <Link className="text-sm font-bold text-cyan-100 hover:text-white" href="/admin">
-          Back to events
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <AdminSignOutButton />
+          <Link className="text-sm font-bold text-cyan-100 hover:text-white" href="/admin">
+            Back to events
+          </Link>
+        </div>
       </header>
 
       {isLoading ? (

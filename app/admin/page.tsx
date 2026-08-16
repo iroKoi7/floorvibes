@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { getActiveEvents } from "@/lib/event-store";
+import { AdminAuthGate } from "@/app/admin/_components/admin-auth-gate";
+import { AdminSignOutButton } from "@/app/admin/_components/admin-sign-out-button";
+import { getAdminEvents } from "@/lib/event-store";
 import type { EventRow } from "@/lib/types";
 
 type Feedback = {
@@ -53,7 +55,7 @@ export default function AdminPage() {
   useEffect(() => {
     async function loadEvents() {
       setIsLoading(true);
-      const { data, errorMessage } = await getActiveEvents();
+      const { data, errorMessage } = await getAdminEvents();
       if (errorMessage) {
         setFeedback({ type: "error", message: errorMessage });
       } else {
@@ -77,7 +79,8 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+    <AdminAuthGate>
+      <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 py-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-pink-200">
@@ -86,12 +89,15 @@ export default function AdminPage() {
           </p>
           <h1 className="mt-1 text-3xl font-black text-white">Events</h1>
         </div>
-        <Link href="/admin/create">
-          <Button type="button">
-            <Plus className="h-5 w-5" aria-hidden="true" />
-            Add Event
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <AdminSignOutButton />
+          <Link href="/admin/create">
+            <Button type="button">
+              <Plus className="h-5 w-5" aria-hidden="true" />
+              Add Event
+            </Button>
+          </Link>
+        </div>
       </header>
 
       <Card className="overflow-hidden p-0">
@@ -209,6 +215,7 @@ export default function AdminPage() {
           {feedback.message}
         </div>
       ) : null}
-    </main>
+      </main>
+    </AdminAuthGate>
   );
 }
