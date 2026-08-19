@@ -1,4 +1,5 @@
 export type RequestStatus = "pending" | "played" | "dismissed";
+export type EventLikeMode = "single" | "multiple";
 
 export type EventRow = {
   id: string;
@@ -8,6 +9,10 @@ export type EventRow = {
   slug: string;
   starts_at: string | null;
   ends_at: string | null;
+  end_message: string;
+  end_cta_label: string | null;
+  end_cta_url: string | null;
+  like_mode: EventLikeMode;
   is_active: boolean;
 };
 
@@ -17,6 +22,10 @@ export type EventInsert = {
   slug: string;
   starts_at?: string | null;
   ends_at?: string | null;
+  end_message?: string;
+  end_cta_label?: string | null;
+  end_cta_url?: string | null;
+  like_mode?: EventLikeMode;
   is_active?: boolean;
 };
 
@@ -68,6 +77,22 @@ export type RequestUpdate = {
   status?: RequestStatus;
 };
 
+export type EventLikeRow = {
+  id: string;
+  created_at: string;
+  event_id: string;
+  dj_id: string;
+  audience_session_id: string;
+  audience_name: string | null;
+};
+
+export type EventLikeInsert = {
+  event_id: string;
+  dj_id: string;
+  audience_session_id: string;
+  audience_name?: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -95,6 +120,25 @@ export type Database = {
         Insert: RequestInsert;
         Update: RequestUpdate;
         Relationships: [];
+      };
+      event_likes: {
+        Row: EventLikeRow;
+        Insert: EventLikeInsert;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "event_likes_event_id_fkey";
+            columns: ["event_id"];
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_likes_dj_id_fkey";
+            columns: ["dj_id"];
+            referencedRelation: "djs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: Record<string, never>;

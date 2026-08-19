@@ -5,6 +5,8 @@ const MOCK_EVENTS_KEY = "floorvibes:mock-events";
 const MOCK_DJS_KEY = "floorvibes:mock-djs";
 
 export const DEFAULT_EVENT_SLUG = "floorvibes";
+export const DEFAULT_END_MESSAGE =
+  "This event has ended. Thanks for joining FloorVibes. Send some love to the DJs.";
 
 function createMockId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -33,6 +35,10 @@ function defaultEvents(): EventRow[] {
       slug: DEFAULT_EVENT_SLUG,
       starts_at: null,
       ends_at: null,
+      end_message: DEFAULT_END_MESSAGE,
+      end_cta_label: null,
+      end_cta_url: null,
+      like_mode: "multiple",
       is_active: true,
     },
   ];
@@ -203,6 +209,10 @@ export async function createEvent(event: EventInsert) {
     slug: event.slug,
     starts_at: event.starts_at ?? null,
     ends_at: event.ends_at ?? null,
+    end_message: event.end_message ?? DEFAULT_END_MESSAGE,
+    end_cta_label: event.end_cta_label ?? null,
+    end_cta_url: event.end_cta_url ?? null,
+    like_mode: event.like_mode ?? "multiple",
     is_active: event.is_active ?? true,
   };
   writeMockRows(MOCK_EVENTS_KEY, [nextEvent, ...events]);

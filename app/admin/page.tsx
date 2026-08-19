@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Activity,
   CalendarClock,
   CheckCircle2,
   ChevronDown,
+  CircleDot,
   Copy,
   ExternalLink,
+  Heart,
   Pencil,
   Plus,
   Settings2,
@@ -16,12 +19,21 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AdminAuthGate } from "@/app/admin/_components/admin-auth-gate";
 import { AdminSignOutButton } from "@/app/admin/_components/admin-sign-out-button";
-import { getAdminEvents } from "@/lib/event-store";
-import type { EventRow } from "@/lib/types";
+import { getAdminEvents, getDjsForEvent } from "@/lib/event-store";
+import { getDjLikeCounts } from "@/lib/feedback-store";
+import type { DjRow, EventLikeMode, EventRow } from "@/lib/types";
 
 type Feedback = {
   type: "success" | "error";
   message: string;
+};
+
+type EventStatus = "upcoming" | "live" | "ended" | "unscheduled";
+
+type EventDetails = {
+  djs: DjRow[];
+  likeCounts: Record<string, number>;
+  errorMessage: string | null;
 };
 
 function formatDate(value: string | null) {
@@ -46,10 +58,61 @@ function formatSchedule(event: EventRow) {
   return [start, end].filter(Boolean).join(" - ");
 }
 
+function getEventStatus(event: EventRow, now: number): EventStatus {
+  const start = event.starts_at ? new Date(event.starts_at).getTime() : null;
+  const end = event.ends_at ? new Date(event.ends_at).getTime() : null;
+
+  if (!start && !end) return "unscheduled";
+  if (end && end <= now) return "ended";
+  if (start && start > now) return "upcoming";
+  return "live";
+}
+
+const statusConfig: Record<
+  EventStatus,
+  {
+    label: string;
+    icon: typeof Activity;
+    className: string;
+    rowClassName: string;
+  }
+> = {
+  live: {
+    label: "Live",
+    icon: Activity,
+    className: "border-pink-300/30 bg-pink-300/12 text-pink-50",
+    rowClassName: "bg-pink-300/[0.035]",
+  },
+  upcoming: {
+    label: "Upcoming",
+    icon: CalendarClock,
+    className: "border-cyan-300/30 bg-cyan-300/12 text-cyan-50",
+    rowClassName: "",
+  },
+  ended: {
+    label: "Ended",
+    icon: CheckCircle2,
+    className: "border-slate-500/30 bg-slate-500/10 text-slate-300",
+    rowClassName: "opacity-60 grayscale",
+  },
+  unscheduled: {
+    label: "Unscheduled",
+    icon: CircleDot,
+    className: "border-purple-300/25 bg-purple-300/10 text-purple-100",
+    rowClassName: "",
+  },
+};
+
+function formatLikeMode(value: EventLikeMode) {
+  return value === "single" ? "One DJ only" : "Multiple DJs";
+}
+
 export default function AdminPage() {
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [eventDetails, setEventDetails] = useState<Record<string, EventDetails>>({});
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const origin = useMemo(() => (typeof window === "undefined" ? "" : window.location.origin), []);
 
   useEffect(() => {
@@ -60,11 +123,42 @@ export default function AdminPage() {
         setFeedback({ type: "error", message: errorMessage });
       } else {
         setEvents(data);
+        const detailPairs = await Promise.all(
+          data.map(async (event) => {
+            const { data: djs, errorMessage: djsError } = await getDjsForEvent(event.id);
+            if (djsError) {
+              return [
+                event.id,
+                {
+                  djs: [],
+                  likeCounts: {},
+                  errorMessage: djsError,
+                },
+              ] as const;
+            }
+
+            const { data: likeCounts, errorMessage: likesError } = await getDjLikeCounts(event.id, djs);
+            return [
+              event.id,
+              {
+                djs,
+                likeCounts: Object.fromEntries(likeCounts.map((row) => [row.dj_id, row.count])),
+                errorMessage: likesError,
+              },
+            ] as const;
+          }),
+        );
+        setEventDetails(Object.fromEntries(detailPairs));
       }
       setIsLoading(false);
     }
 
     void loadEvents();
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCurrentTime(Date.now()), 30 * 1000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -116,10 +210,23 @@ export default function AdminPage() {
         {events.map((event) => {
           const audienceUrl = `${origin}/e/${encodeURIComponent(event.slug)}`;
           const djUrl = `${origin}/dj/${encodeURIComponent(event.slug)}`;
+          const status = getEventStatus(event, currentTime);
+          const config = statusConfig[status];
+          const StatusIcon = config.icon;
+          const details = eventDetails[event.id];
+          const totalLikes = details?.djs.reduce(
+            (sum, dj) => sum + (details.likeCounts[dj.id] ?? 0),
+            0,
+          ) ?? 0;
 
           return (
             <details className="group border-b border-white/10 last:border-b-0" key={event.id}>
-              <summary className="grid cursor-pointer list-none gap-3 px-4 py-4 transition hover:bg-white/[0.03] sm:grid-cols-[1fr_180px_auto] sm:items-center [&::-webkit-details-marker]:hidden">
+              <summary
+                className={[
+                  "grid cursor-pointer list-none gap-3 px-4 py-4 transition hover:bg-white/[0.03] sm:grid-cols-[1fr_180px_120px_auto] sm:items-center [&::-webkit-details-marker]:hidden",
+                  config.rowClassName,
+                ].join(" ")}
+              >
                 <div className="min-w-0">
                   <p className="truncate text-base font-black text-white">{event.name}</p>
                   <p className="mt-1 text-xs font-bold text-slate-500">/{event.slug}</p>
@@ -128,6 +235,15 @@ export default function AdminPage() {
                   <p className="text-sm font-bold text-slate-200">{formatDate(event.starts_at)}</p>
                   <p className="mt-1 text-xs font-bold text-slate-500">{formatSchedule(event)}</p>
                 </div>
+                <div
+                  className={[
+                    "inline-flex min-h-8 w-fit items-center gap-2 rounded-full border px-3 text-xs font-black",
+                    config.className,
+                  ].join(" ")}
+                >
+                  <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {config.label}
+                </div>
                 <ChevronDown
                   className="h-5 w-5 justify-self-end text-pink-200 transition group-open:rotate-180"
                   aria-hidden="true"
@@ -135,6 +251,77 @@ export default function AdminPage() {
               </summary>
 
               <div className="space-y-4 border-t border-white/10 bg-[#0b0614]/60 px-4 py-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                      Status
+                    </p>
+                    <p className="mt-2 flex items-center gap-2 text-sm font-black text-white">
+                      <StatusIcon className="h-4 w-4 text-pink-200" aria-hidden="true" />
+                      {config.label}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                      Like mode
+                    </p>
+                    <p className="mt-2 text-sm font-black text-white">
+                      {formatLikeMode(event.like_mode)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                      Total likes
+                    </p>
+                    <p className="mt-2 flex items-center gap-2 text-sm font-black text-white">
+                      <Heart className="h-4 w-4 text-pink-200" aria-hidden="true" />
+                      {totalLikes}
+                    </p>
+                  </div>
+                </div>
+
+                {status === "ended" ? (
+                  <div className="rounded-lg border border-pink-300/15 bg-pink-300/[0.08] p-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-pink-100">
+                      DJ like results
+                    </p>
+                    {details?.errorMessage ? (
+                      <p className="mt-2 text-sm font-bold text-rose-100">{details.errorMessage}</p>
+                    ) : null}
+                    {!details ? (
+                      <p className="mt-2 text-sm font-bold text-slate-400">Loading results...</p>
+                    ) : null}
+                    {details && details.djs.length === 0 ? (
+                      <p className="mt-2 text-sm font-bold text-slate-400">No DJs for this event.</p>
+                    ) : null}
+                    {details && details.djs.length > 0 ? (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {details.djs
+                          .map((dj) => ({
+                            dj,
+                            count: details.likeCounts[dj.id] ?? 0,
+                          }))
+                          .sort((a, b) => b.count - a.count)
+                          .map(({ dj, count }, index) => (
+                            <div
+                              className="rounded-lg border border-white/10 bg-[#12091f]/70 p-3"
+                              key={dj.id}
+                            >
+                              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                                #{index + 1}
+                              </p>
+                              <p className="mt-1 truncate text-sm font-black text-white">{dj.name}</p>
+                              <p className="mt-2 flex items-center gap-2 text-lg font-black text-pink-100">
+                                <Heart className="h-4 w-4" aria-hidden="true" />
+                                {count}
+                              </p>
+                            </div>
+                          ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <div className="grid gap-3 lg:grid-cols-2">
                   <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3">
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-100">

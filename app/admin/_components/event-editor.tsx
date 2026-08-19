@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import {
   createDj,
   createEvent,
+  DEFAULT_END_MESSAGE,
   deleteDj,
   getDjsForEvent,
   getEventById,
@@ -64,6 +65,10 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
   const [eventSlug, setEventSlug] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
+  const [endMessage, setEndMessage] = useState(DEFAULT_END_MESSAGE);
+  const [endCtaLabel, setEndCtaLabel] = useState("");
+  const [endCtaUrl, setEndCtaUrl] = useState("");
+  const [likeMode, setLikeMode] = useState<"single" | "multiple">("multiple");
   const [djs, setDjs] = useState<DraftDj[]>([]);
   const [deletedDjIds, setDeletedDjIds] = useState<string[]>([]);
   const [newDjName, setNewDjName] = useState("");
@@ -97,6 +102,10 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
       setEventSlug(event.slug);
       setStartsAt(toDateTimeLocal(event.starts_at));
       setEndsAt(toDateTimeLocal(event.ends_at));
+      setEndMessage(event.end_message || DEFAULT_END_MESSAGE);
+      setEndCtaLabel(event.end_cta_label ?? "");
+      setEndCtaUrl(event.end_cta_url ?? "");
+      setLikeMode(event.like_mode ?? "multiple");
       setDjs(eventDjs);
       setDeletedDjIds([]);
       setIsLoading(false);
@@ -124,6 +133,18 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
       return "URL slug can use lowercase letters, numbers, and single hyphens only.";
     }
     if (start && end && end <= start) return "End time must be after start time.";
+    if (endMessage.trim().length > 280) return "End message must be 280 characters or fewer.";
+    if (endCtaLabel.trim().length > 40) return "CTA label must be 40 characters or fewer.";
+    if (endCtaUrl.trim()) {
+      try {
+        const url = new URL(endCtaUrl.trim());
+        if (!["http:", "https:"].includes(url.protocol)) return "CTA URL must start with http or https.";
+      } catch {
+        return "CTA URL must be a valid link.";
+      }
+    }
+    if (endCtaLabel.trim() && !endCtaUrl.trim()) return "CTA URL is required when CTA label is set.";
+    if (!endCtaLabel.trim() && endCtaUrl.trim()) return "CTA label is required when CTA URL is set.";
     if (visibleDjs.length === 0) return "Add at least one DJ before saving.";
     if (visibleDjs.some((dj) => !dj.name.trim())) return "DJ name is required.";
 
@@ -189,6 +210,10 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
         slug: eventSlug.trim(),
         starts_at: fromDateTimeLocal(startsAt),
         ends_at: fromDateTimeLocal(endsAt),
+        end_message: endMessage.trim() || DEFAULT_END_MESSAGE,
+        end_cta_label: endCtaLabel.trim() || null,
+        end_cta_url: endCtaUrl.trim() || null,
+        like_mode: likeMode,
         is_active: true,
       });
 
@@ -205,6 +230,10 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
         slug: eventSlug.trim(),
         starts_at: fromDateTimeLocal(startsAt),
         ends_at: fromDateTimeLocal(endsAt),
+        end_message: endMessage.trim() || DEFAULT_END_MESSAGE,
+        end_cta_label: endCtaLabel.trim() || null,
+        end_cta_url: endCtaUrl.trim() || null,
+        like_mode: likeMode,
       });
 
       if (errorMessage) {
@@ -221,6 +250,10 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
         slug: eventSlug.trim(),
         starts_at: fromDateTimeLocal(startsAt),
         ends_at: fromDateTimeLocal(endsAt),
+        end_message: endMessage.trim() || DEFAULT_END_MESSAGE,
+        end_cta_label: endCtaLabel.trim() || null,
+        end_cta_url: endCtaUrl.trim() || null,
+        like_mode: likeMode,
         is_active: true,
       };
     }
@@ -367,6 +400,79 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
                   type="datetime-local"
                   value={endsAt}
                   onChange={(event) => setEndsAt(event.target.value)}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                  End message
+                </label>
+                <textarea
+                  aria-label="End message"
+                  className="mt-2 min-h-28 w-full resize-y rounded-lg border border-white/12 bg-[#12091f]/80 px-4 py-3 text-base text-white outline-none transition placeholder:text-slate-500 focus:border-pink-300/70 focus:bg-[#170d28] focus:ring-4 focus:ring-pink-300/10"
+                  maxLength={280}
+                  onChange={(event) => setEndMessage(event.target.value)}
+                  placeholder={DEFAULT_END_MESSAGE}
+                  value={endMessage}
+                />
+                <p className="mt-2 text-xs font-bold text-slate-500">
+                  Shown after the event ends. {endMessage.length}/280
+                </p>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                  Like mode
+                </label>
+                <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1">
+                  <button
+                    className={[
+                      "min-h-11 rounded-md px-3 text-sm font-black transition",
+                      likeMode === "multiple"
+                        ? "bg-white text-[#12091f]"
+                        : "text-slate-300 hover:bg-white/10 hover:text-white",
+                    ].join(" ")}
+                    onClick={() => setLikeMode("multiple")}
+                    type="button"
+                  >
+                    Multiple DJs
+                  </button>
+                  <button
+                    className={[
+                      "min-h-11 rounded-md px-3 text-sm font-black transition",
+                      likeMode === "single"
+                        ? "bg-white text-[#12091f]"
+                        : "text-slate-300 hover:bg-white/10 hover:text-white",
+                    ].join(" ")}
+                    onClick={() => setLikeMode("single")}
+                    type="button"
+                  >
+                    One DJ only
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                  CTA label
+                </label>
+                <Input
+                  aria-label="CTA label"
+                  className="mt-2"
+                  maxLength={40}
+                  onChange={(event) => setEndCtaLabel(event.target.value)}
+                  placeholder="Next event / Survey"
+                  value={endCtaLabel}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                  CTA URL
+                </label>
+                <Input
+                  aria-label="CTA URL"
+                  className="mt-2"
+                  onChange={(event) => setEndCtaUrl(event.target.value)}
+                  placeholder="https://example.com"
+                  type="url"
+                  value={endCtaUrl}
                 />
               </div>
             </div>

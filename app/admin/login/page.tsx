@@ -14,6 +14,12 @@ type Feedback = {
   message: string;
 };
 
+function getSiteOrigin() {
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
+  if (configuredUrl) return configuredUrl;
+  return window.location.origin;
+}
+
 function AdminLoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -73,7 +79,7 @@ function AdminLoginContent() {
       return;
     }
 
-    const redirectTo = `${window.location.origin}/admin/login?next=${encodeURIComponent("/admin")}`;
+    const redirectTo = `${getSiteOrigin()}/admin/login?next=${encodeURIComponent("/admin")}`;
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,

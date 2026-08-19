@@ -1,7 +1,16 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { AudioWaveform, Disc3, Music2, Send, Sparkles } from "lucide-react";
+import {
+  AudioWaveform,
+  Disc3,
+  ExternalLink,
+  Heart,
+  Music2,
+  PartyPopper,
+  Send,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +23,7 @@ import {
   getDjsForEvent,
   getEventBySlug,
 } from "@/lib/event-store";
+import { createEventLike, getLikedDjIds } from "@/lib/feedback-store";
 import { isLanguage, LANGUAGE_STORAGE_KEY, text, type Language } from "@/lib/i18n";
 import { createRequest, isUsingMockRequests } from "@/lib/request-store";
 import type { DjRow, EventRow } from "@/lib/types";
@@ -26,6 +36,7 @@ const REQUEST_COOLDOWN_MS = 30 * 1000;
 const AUDIENCE_SESSION_MS = 3 * 60 * 60 * 1000;
 
 type AudienceSession = {
+  id: string;
   name: string;
   expiresAt: number;
 };
@@ -37,12 +48,15 @@ type AudiencePageProps = {
 export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [songTitle, setSongTitle] = useState("");
   const [audienceName, setAudienceName] = useState("");
+  const [audienceSessionId, setAudienceSessionId] = useState("");
   const [events, setEvents] = useState<EventRow[]>([]);
   const [djs, setDjs] = useState<DjRow[]>([]);
+  const [likedDjIds, setLikedDjIds] = useState<string[]>([]);
   const [eventId, setEventId] = useState("");
   const [djId, setDjId] = useState("");
   const [eventSlug, setEventSlug] = useState(DEFAULT_EVENT_SLUG);
   const [language, setLanguage] = useState<Language>("en");
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [isSending, setIsSending] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -50,7 +64,21 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const isCoolingDown = cooldownRemaining > 0;
   const selectedEvent = events.find((event) => event.id === eventId) ?? null;
   const selectedDj = djs.find((dj) => dj.id === djId) ?? null;
+  const isEventEnded = Boolean(
+    selectedEvent?.ends_at && new Date(selectedEvent.ends_at).getTime() <= currentTime,
+  );
   const djName = selectedDj?.name ?? copy.loadingRequests;
+
+  function createAudienceSession(name = "") {
+    return {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `audience-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name,
+      expiresAt: Date.now() + AUDIENCE_SESSION_MS,
+    } satisfies AudienceSession;
+  }
 
   useEffect(() => {
     const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -59,18 +87,33 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     }
 
     const rawSession = window.localStorage.getItem(AUDIENCE_SESSION_STORAGE_KEY);
-    if (!rawSession) return;
+    if (!rawSession) {
+      const nextSession = createAudienceSession();
+      setAudienceSessionId(nextSession.id);
+      window.localStorage.setItem(AUDIENCE_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+      return;
+    }
 
     try {
       const session = JSON.parse(rawSession) as AudienceSession;
-      if (session.expiresAt > Date.now()) {
+      if (session.expiresAt > Date.now() && session.id) {
         setAudienceName(session.name);
+        setAudienceSessionId(session.id);
       } else {
-        window.localStorage.removeItem(AUDIENCE_SESSION_STORAGE_KEY);
+        const nextSession = createAudienceSession();
+        setAudienceSessionId(nextSession.id);
+        window.localStorage.setItem(AUDIENCE_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
       }
     } catch {
-      window.localStorage.removeItem(AUDIENCE_SESSION_STORAGE_KEY);
+      const nextSession = createAudienceSession();
+      setAudienceSessionId(nextSession.id);
+      window.localStorage.setItem(AUDIENCE_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
     }
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCurrentTime(Date.now()), 30 * 1000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -126,6 +169,17 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   }, [eventId]);
 
   useEffect(() => {
+    if (!eventId || djs.length === 0 || !audienceSessionId) return;
+
+    async function loadLikes() {
+      const { data: likedIds } = await getLikedDjIds(eventId, audienceSessionId);
+      setLikedDjIds(likedIds);
+    }
+
+    void loadLikes();
+  }, [audienceSessionId, djs, eventId]);
+
+  useEffect(() => {
     function syncCooldown() {
       const lastRequestAt = Number(window.localStorage.getItem(REQUEST_COOLDOWN_STORAGE_KEY));
       if (!lastRequestAt) {
@@ -159,13 +213,39 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     const trimmedName = name.trim();
     if (!trimmedName) return;
 
+    const sessionId = audienceSessionId || createAudienceSession().id;
+    setAudienceSessionId(sessionId);
+
     window.localStorage.setItem(
       AUDIENCE_SESSION_STORAGE_KEY,
       JSON.stringify({
+        id: sessionId,
         name: trimmedName,
         expiresAt: Date.now() + AUDIENCE_SESSION_MS,
       } satisfies AudienceSession),
     );
+  }
+
+  async function sendLike(dj: DjRow) {
+    const alreadySentSingleLike = selectedEvent?.like_mode === "single" && likedDjIds.length > 0;
+    if (!selectedEvent || !audienceSessionId || likedDjIds.includes(dj.id) || alreadySentSingleLike) {
+      return;
+    }
+
+    const { errorMessage } = await createEventLike({
+      event_id: selectedEvent.id,
+      dj_id: dj.id,
+      audience_session_id: audienceSessionId,
+      audience_name: audienceName.trim() || null,
+    });
+
+    if (errorMessage) {
+      setToast(errorMessage);
+      return;
+    }
+
+    setLikedDjIds((current) => [...current, dj.id]);
+    setToast(language === "ja" ? `${dj.name} にLikeを送りました!` : `Sent love to ${dj.name}!`);
   }
 
   useEffect(() => {
@@ -261,6 +341,63 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
               className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#fb5ab8,#38dfff,#a855f7)]"
               aria-hidden="true"
             />
+            {isEventEnded && selectedEvent ? (
+              <div className="space-y-4 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-pink-300/25 bg-pink-300/10 text-pink-100">
+                  <PartyPopper className="h-7 w-7" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-100">
+                    {language === "ja" ? "イベント終了" : "Event ended"}
+                  </p>
+                  <h3 className="mt-2 text-2xl font-black text-white">{selectedEvent.name}</h3>
+                  <p className="mt-3 whitespace-pre-line text-sm font-bold leading-6 text-slate-300">
+                    {selectedEvent.end_message}
+                  </p>
+                  {selectedEvent.end_cta_label && selectedEvent.end_cta_url ? (
+                    <a
+                      className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-cyan-200/20 bg-cyan-200/10 px-4 py-2 text-sm font-black text-cyan-50 transition hover:bg-cyan-200/16"
+                      href={selectedEvent.end_cta_url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {selectedEvent.end_cta_label}
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  ) : null}
+                </div>
+                <div className="grid gap-2">
+                  {djs.map((dj) => {
+                    const liked = likedDjIds.includes(dj.id);
+                    const singleLikeUsed = selectedEvent.like_mode === "single" && likedDjIds.length > 0;
+                    const disabled = liked || (singleLikeUsed && !liked);
+                    return (
+                      <Button
+                        className="w-full"
+                        disabled={disabled}
+                        key={dj.id}
+                        onClick={() => void sendLike(dj)}
+                        type="button"
+                        variant={liked ? "secondary" : "primary"}
+                      >
+                        <Heart className="h-5 w-5" aria-hidden="true" />
+                        {liked
+                          ? language === "ja"
+                            ? "送ったよ、ありがとう!"
+                            : "Sent. Thank you!"
+                          : singleLikeUsed
+                            ? language === "ja"
+                              ? "Like送信済み"
+                              : "Like sent"
+                            : language === "ja"
+                              ? `${dj.name} にLikeを送る`
+                              : `Send love to ${dj.name}`}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-bold text-slate-200" htmlFor="dj">
@@ -335,6 +472,7 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
                 </p>
               ) : null}
             </form>
+            )}
           </Card>
 
           {isUsingMockRequests ? (
