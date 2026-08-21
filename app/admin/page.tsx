@@ -11,6 +11,7 @@ import {
   Copy,
   ExternalLink,
   Heart,
+  ListMusic,
   Pencil,
   Plus,
   Settings2,
@@ -21,7 +22,8 @@ import { AdminAuthGate } from "@/app/admin/_components/admin-auth-gate";
 import { AdminSignOutButton } from "@/app/admin/_components/admin-sign-out-button";
 import { getAdminEvents, getDjsForEvent } from "@/lib/event-store";
 import { getDjLikeCounts } from "@/lib/feedback-store";
-import type { DjRow, EventLikeMode, EventRow } from "@/lib/types";
+import { getEventRequests } from "@/lib/request-store";
+import type { DjRow, EventLikeMode, EventRow, RequestRow, RequestStatus } from "@/lib/types";
 
 type Feedback = {
   type: "success" | "error";
@@ -33,6 +35,7 @@ type EventStatus = "upcoming" | "live" | "ended" | "unscheduled";
 type EventDetails = {
   djs: DjRow[];
   likeCounts: Record<string, number>;
+  requests: RequestRow[];
   errorMessage: string | null;
 };
 
@@ -107,6 +110,12 @@ function formatLikeMode(value: EventLikeMode) {
   return value === "single" ? "One DJ only" : "Multiple DJs";
 }
 
+function formatRequestStatus(value: RequestStatus) {
+  if (value === "played") return "Played";
+  if (value === "dismissed") return "Dismissed";
+  return "Pending";
+}
+
 export default function AdminPage() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [eventDetails, setEventDetails] = useState<Record<string, EventDetails>>({});
@@ -132,18 +141,26 @@ export default function AdminPage() {
                 {
                   djs: [],
                   likeCounts: {},
+                  requests: [],
                   errorMessage: djsError,
                 },
               ] as const;
             }
 
-            const { data: likeCounts, errorMessage: likesError } = await getDjLikeCounts(event.id, djs);
+            const [
+              { data: likeCounts, errorMessage: likesError },
+              { data: requests, errorMessage: requestsError },
+            ] = await Promise.all([
+              getDjLikeCounts(event.id, djs),
+              getEventRequests(event.id),
+            ]);
             return [
               event.id,
               {
                 djs,
                 likeCounts: Object.fromEntries(likeCounts.map((row) => [row.dj_id, row.count])),
-                errorMessage: likesError,
+                requests,
+                errorMessage: likesError ?? requestsError,
               },
             ] as const;
           }),
@@ -218,6 +235,13 @@ export default function AdminPage() {
             (sum, dj) => sum + (details.likeCounts[dj.id] ?? 0),
             0,
           ) ?? 0;
+          const requests = details?.requests ?? [];
+          const requestCounts = {
+            total: requests.length,
+            pending: requests.filter((request) => request.status === "pending").length,
+            played: requests.filter((request) => request.status === "played").length,
+            dismissed: requests.filter((request) => request.status === "dismissed").length,
+          };
 
           return (
             <details className="group border-b border-white/10 last:border-b-0" key={event.id}>
@@ -321,6 +345,70 @@ export default function AdminPage() {
                     ) : null}
                   </div>
                 ) : null}
+
+                <div className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.07] p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-cyan-100">
+                        <ListMusic className="h-4 w-4" aria-hidden="true" />
+                        Request report
+                      </p>
+                      <p className="mt-2 text-sm font-bold text-slate-300">
+                        All requests across DJs for this event.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      {[
+                        ["Total", requestCounts.total],
+                        ["Played", requestCounts.played],
+                        ["Pending", requestCounts.pending],
+                        ["Dismissed", requestCounts.dismissed],
+                      ].map(([label, count]) => (
+                        <div className="rounded-lg border border-white/10 bg-[#12091f]/70 px-2 py-2" key={label}>
+                          <p className="text-base font-black text-white">{count}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">
+                            {label}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {!details ? (
+                    <p className="mt-3 text-sm font-bold text-slate-400">Loading requests...</p>
+                  ) : null}
+                  {details && requests.length === 0 ? (
+                    <p className="mt-3 text-sm font-bold text-slate-400">No requests yet.</p>
+                  ) : null}
+                  {details && requests.length > 0 ? (
+                    <div className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-white/10">
+                      {requests.slice(0, 60).map((request) => (
+                        <div
+                          className="grid gap-2 border-b border-white/10 bg-[#080310]/55 px-3 py-3 last:border-b-0 sm:grid-cols-[1.2fr_120px_110px_100px] sm:items-center"
+                          key={request.id}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-white">
+                              {request.song_title}
+                            </p>
+                            <p className="mt-0.5 truncate text-xs font-bold text-slate-500">
+                              {request.song_artist ?? request.requested_by ?? "Manual request"}
+                            </p>
+                          </div>
+                          <p className="truncate text-xs font-bold text-pink-100/85">
+                            {request.dj_name}
+                          </p>
+                          <p className="text-xs font-bold text-slate-400">
+                            {formatDate(request.created_at)}
+                          </p>
+                          <p className="w-fit rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-black text-slate-200">
+                            {formatRequestStatus(request.status)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
 
                 <div className="grid gap-3 lg:grid-cols-2">
                   <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3">

@@ -59,6 +59,7 @@ export type RequestRow = {
   event_id: string | null;
   dj_id: string | null;
   dj_name: string;
+  audience_session_id: string | null;
   requested_by: string | null;
   song_title: string;
   song_artist: string | null;
@@ -73,6 +74,7 @@ export type RequestInsert = {
   event_id?: string | null;
   dj_id?: string | null;
   dj_name: string;
+  audience_session_id?: string | null;
   requested_by?: string | null;
   song_title: string;
   song_artist?: string | null;

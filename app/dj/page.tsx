@@ -27,6 +27,7 @@ import {
 import { isLanguage, LANGUAGE_STORAGE_KEY, text, type Language } from "@/lib/i18n";
 import {
   getPendingRequests,
+  getAnsweredRequests,
   isUsingMockRequests,
   subscribeToRequestChanges,
   updateRequestStatus,
@@ -51,6 +52,7 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
   const [eventId, setEventId] = useState("");
   const [djId, setDjId] = useState("");
   const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [answeredRequests, setAnsweredRequests] = useState<RequestRow[]>([]);
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -137,23 +139,35 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
   const loadRequests = useCallback(async () => {
     if (!selectedDj || isEventEnded) {
       setRequests([]);
+      setAnsweredRequests([]);
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-    const { data, errorMessage } = await getPendingRequests({
-      eventId: selectedEvent?.id ?? null,
-      djId: selectedDj.id,
-      djName: selectedDj.name,
-    });
+    const [pendingResult, answeredResult] = await Promise.all([
+      getPendingRequests({
+        eventId: selectedEvent?.id ?? null,
+        djId: selectedDj.id,
+        djName: selectedDj.name,
+      }),
+      getAnsweredRequests({
+        eventId: selectedEvent?.id ?? null,
+        djId: selectedDj.id,
+        djName: selectedDj.name,
+      }),
+    ]);
+
+    const errorMessage = pendingResult.errorMessage ?? answeredResult.errorMessage;
 
     if (errorMessage) {
       setErrorMessage(errorMessage);
       setRequests([]);
+      setAnsweredRequests([]);
     } else {
       setErrorMessage(null);
-      setRequests(data ?? []);
+      setRequests(pendingResult.data ?? []);
+      setAnsweredRequests(answeredResult.data ?? []);
     }
 
     setIsLoading(false);
@@ -184,6 +198,8 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
     const { errorMessage } = await updateRequestStatus(id, status);
     if (errorMessage) {
       setErrorMessage(errorMessage);
+      await loadRequests();
+    } else {
       await loadRequests();
     }
   }
@@ -373,6 +389,63 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
               </div>
             </Card>
           ))}
+
+          {!isLoading && answeredRequests.length > 0 ? (
+            <Card className="p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                    {language === "ja" ? "対応済み" : "Answered"}
+                  </p>
+                  <h3 className="text-lg font-black text-white">
+                    {language === "ja" ? "対応済みリクエスト" : "Handled requests"}
+                  </h3>
+                </div>
+                <p className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-slate-300">
+                  {answeredRequests.length}
+                </p>
+              </div>
+              <div className="space-y-2">
+                {answeredRequests.slice(0, 8).map((request) => {
+                  const played = request.status === "played";
+                  return (
+                    <div
+                      className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.035] p-3"
+                      key={request.id}
+                    >
+                      {request.song_artwork_url ? (
+                        <img
+                          alt=""
+                          className="h-12 w-12 shrink-0 rounded-md object-cover"
+                          src={request.song_artwork_url}
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-cyan-200/15 bg-cyan-200/10 text-cyan-100">
+                          <Music2 className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-white">{request.song_title}</p>
+                        <p className="mt-0.5 truncate text-xs font-bold text-slate-500">
+                          {request.song_artist ?? request.requested_by ?? formatTime(request.created_at)}
+                        </p>
+                      </div>
+                      <span
+                        className={[
+                          "rounded-full border px-2 py-1 text-[11px] font-black",
+                          played
+                            ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
+                            : "border-slate-500/25 bg-slate-500/10 text-slate-300",
+                        ].join(" ")}
+                      >
+                        {played ? copy.played : copy.dismiss}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ) : null}
         </div>
         ) : null}
       </section>

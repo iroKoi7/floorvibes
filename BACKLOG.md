@@ -2,21 +2,15 @@
 
 ## High Priority
 
-- Song search and autocomplete
-  - Let audience members search songs inside FloorVibes instead of opening another music app.
-  - Show rough candidate results from partial song, artist, or mixed input.
-  - Store normalized song metadata when available, such as title, artist, artwork, and provider ID.
-  - Keep manual free-text input as a fallback when search results are missing.
-  - Use search-selected metadata later to reduce spelling variance and make request grouping easier.
-  - Compare practical providers for MVP, such as Spotify, Apple Music, YouTube Music-adjacent sources, MusicBrainz, or iTunes Search API.
-
-- Audience request history
+- Request history and event reports
   - Keep audience users login-free.
   - Preserve the audience session during the event.
   - Show the user's own request history for the current event/session.
   - Update the history when a DJ marks a request as played.
   - Make fulfilled requests feel clear and rewarding, such as "Your request was played."
   - Consider adding a lightweight feedback action from a fulfilled request.
+  - Let DJs review requests they already marked as played or dismissed during the event.
+  - Let Admin review all event requests across DJs as a post-event report.
 
 - Production load check
   - Validate the app can handle a real event with 100-200 concurrent audience users plus DJ/admin usage.
@@ -53,6 +47,13 @@
   - Track historical requests and feedback received by each DJ.
 
 ## Shipped
+
+- Song search and autocomplete
+  - Let audience members search songs inside FloorVibes instead of opening another music app.
+  - Show candidate results from partial song, artist, or mixed input.
+  - Store normalized song metadata when available, such as title, artist, artwork, provider ID, and song URL.
+  - Keep manual free-text input as a fallback when search results are missing.
+  - Show artwork and artist metadata on the DJ dashboard for search-selected requests.
 
 - Event end experience
   - Close Audience and DJ event URLs automatically when the event end time passes.

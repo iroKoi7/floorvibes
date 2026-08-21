@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
   AudioWaveform,
+  CheckCircle2,
   Disc3,
   ExternalLink,
   Heart,
@@ -11,6 +12,7 @@ import {
   Search,
   Send,
   Sparkles,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,9 +28,14 @@ import {
 } from "@/lib/event-store";
 import { createEventLike, getLikedDjIds } from "@/lib/feedback-store";
 import { isLanguage, LANGUAGE_STORAGE_KEY, text, type Language } from "@/lib/i18n";
-import { createRequest, isUsingMockRequests } from "@/lib/request-store";
+import {
+  createRequest,
+  getAudienceRequests,
+  isUsingMockRequests,
+  subscribeToRequestChanges,
+} from "@/lib/request-store";
 import { formatSongRequestTitle, type SongSearchResult } from "@/lib/song-search";
-import type { DjRow, EventRow } from "@/lib/types";
+import type { DjRow, EventRow, RequestRow, RequestStatus } from "@/lib/types";
 
 const AUDIENCE_EVENT_STORAGE_KEY = "floorvibes:audience-event";
 const AUDIENCE_DJ_STORAGE_KEY = "floorvibes:audience-dj-id";
@@ -49,6 +56,19 @@ type AudiencePageProps = {
   fixedEventSlug?: string;
 };
 
+function formatRequestTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function getStatusCopy(status: RequestStatus, language: Language) {
+  if (status === "played") return "Played!";
+  if (status === "dismissed") return language === "ja" ? "見送り" : "Dismissed";
+  return "Waiting...";
+}
+
 export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [songTitle, setSongTitle] = useState("");
   const [audienceName, setAudienceName] = useState("");
@@ -63,6 +83,7 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [selectedSong, setSelectedSong] = useState<SongSearchResult | null>(null);
   const [songResults, setSongResults] = useState<SongSearchResult[]>([]);
+  const [audienceRequests, setAudienceRequests] = useState<RequestRow[]>([]);
   const [isSearchingSongs, setIsSearchingSongs] = useState(false);
   const [songSearchError, setSongSearchError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -240,6 +261,26 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   }, [audienceSessionId, djs, eventId]);
 
   useEffect(() => {
+    if (!eventId || !audienceSessionId) return;
+
+    async function loadAudienceRequests() {
+      const { data } = await getAudienceRequests(eventId, audienceSessionId);
+      setAudienceRequests(data);
+    }
+
+    void loadAudienceRequests();
+    return subscribeToRequestChanges(
+      {
+        eventId,
+        audienceSessionId,
+      },
+      () => {
+        void loadAudienceRequests();
+      },
+    );
+  }, [audienceSessionId, eventId]);
+
+  useEffect(() => {
     function syncCooldown() {
       const lastRequestAt = Number(window.localStorage.getItem(REQUEST_COOLDOWN_STORAGE_KEY));
       if (!lastRequestAt) {
@@ -347,6 +388,7 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
       event_id: selectedEvent?.id ?? null,
       dj_id: selectedDj.id,
       dj_name: selectedDj.name,
+      audience_session_id: audienceSessionId || null,
       requested_by: trimmedName,
       song_title: selectedSongStillMatches ? selectedSong.title : trimmedSong,
       song_artist: selectedSongStillMatches ? selectedSong.artist : null,
@@ -621,6 +663,77 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
             <div className="mt-4">
               <LocalModeNotice message={copy.localMode} />
             </div>
+          ) : null}
+
+          {!isEventEnded && audienceRequests.length > 0 ? (
+            <Card className="mt-4 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-black text-white">
+                  {language === "ja" ? "あなたのリクエスト" : "Your requests"}
+                </h3>
+                <p className="text-xs font-bold text-slate-500">
+                  {language === "ja" ? "このイベント中" : "This event"}
+                </p>
+              </div>
+              <div className="space-y-2">
+                {audienceRequests.slice(0, 5).map((request) => {
+                  const played = request.status === "played";
+                  const dismissed = request.status === "dismissed";
+                  return (
+                    <div
+                      className={[
+                        "flex items-center gap-3 rounded-lg border p-3",
+                        played
+                          ? "border-cyan-300/25 bg-cyan-300/10"
+                          : dismissed
+                            ? "border-slate-500/20 bg-white/[0.03] opacity-70"
+                            : "border-white/10 bg-white/[0.04]",
+                      ].join(" ")}
+                      key={request.id}
+                    >
+                      {request.song_artwork_url ? (
+                        <img
+                          alt=""
+                          className="h-11 w-11 shrink-0 rounded-md object-cover"
+                          src={request.song_artwork_url}
+                        />
+                      ) : (
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-cyan-200/15 bg-cyan-200/10">
+                          <Music2 className="h-4 w-4 text-cyan-100" aria-hidden="true" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-white">
+                          {request.song_title}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs font-bold text-slate-400">
+                          {request.song_artist ?? request.dj_name} · {formatRequestTime(request.created_at)}
+                        </p>
+                      </div>
+                      <div
+                        className={[
+                          "flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-black",
+                          played
+                            ? "border-cyan-300/30 bg-cyan-300/12 text-cyan-50"
+                            : dismissed
+                              ? "border-slate-500/25 bg-slate-500/10 text-slate-300"
+                              : "border-pink-300/25 bg-pink-300/10 text-pink-100",
+                        ].join(" ")}
+                      >
+                        {played ? (
+                          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : dismissed ? (
+                          <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                        {getStatusCopy(request.status, language)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
           ) : null}
         </div>
       </section>
