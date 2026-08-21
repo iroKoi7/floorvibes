@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Headphones,
   Heart,
+  Music2,
   PartyPopper,
   Radio,
   Trash2,
@@ -314,19 +315,37 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
                 aria-hidden="true"
               />
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                    <Clock3 className="h-3.5 w-3.5 text-cyan-200" aria-hidden="true" />
-                    {formatTime(request.created_at)}
-                  </p>
-                  <h3 className="mt-2 break-words text-xl font-black text-white">
-                    {request.song_title}
-                  </h3>
-                  {request.requested_by ? (
-                    <p className="mt-2 text-sm font-bold text-pink-100/80">
-                      {copy.requestedBy}: {request.requested_by}
+                <div className="flex min-w-0 gap-3">
+                  {request.song_artwork_url ? (
+                    <img
+                      alt=""
+                      className="mt-1 h-16 w-16 shrink-0 rounded-lg object-cover shadow-[0_0_22px_rgba(56,223,255,0.12)]"
+                      src={request.song_artwork_url}
+                    />
+                  ) : (
+                    <div className="mt-1 hidden h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-cyan-200/15 bg-cyan-200/10 text-cyan-100 sm:flex">
+                      <Music2 className="h-6 w-6" aria-hidden="true" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                      <Clock3 className="h-3.5 w-3.5 text-cyan-200" aria-hidden="true" />
+                      {formatTime(request.created_at)}
                     </p>
-                  ) : null}
+                    <h3 className="mt-2 break-words text-xl font-black text-white">
+                      {request.song_title}
+                    </h3>
+                    {request.song_artist ? (
+                      <p className="mt-1 truncate text-sm font-bold text-cyan-100/80">
+                        {request.song_artist}
+                      </p>
+                    ) : null}
+                    {request.requested_by ? (
+                      <p className="mt-2 text-sm font-bold text-pink-100/80">
+                        {copy.requestedBy}: {request.requested_by}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
                   <Button

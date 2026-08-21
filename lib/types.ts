@@ -61,6 +61,11 @@ export type RequestRow = {
   dj_name: string;
   requested_by: string | null;
   song_title: string;
+  song_artist: string | null;
+  song_artwork_url: string | null;
+  song_provider: string | null;
+  song_provider_id: string | null;
+  song_url: string | null;
   status: RequestStatus;
 };
 
@@ -70,6 +75,11 @@ export type RequestInsert = {
   dj_name: string;
   requested_by?: string | null;
   song_title: string;
+  song_artist?: string | null;
+  song_artwork_url?: string | null;
+  song_provider?: string | null;
+  song_provider_id?: string | null;
+  song_url?: string | null;
   status?: RequestStatus;
 };
 

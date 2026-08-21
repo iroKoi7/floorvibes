@@ -59,6 +59,26 @@ function fromDateTimeLocal(value: string) {
   return value ? new Date(value).toISOString() : null;
 }
 
+function normalizeOptionalUrl(value: string) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return { value: null, error: null };
+
+  const urlWithProtocol = /^https?:\/\//i.test(trimmedValue)
+    ? trimmedValue
+    : `https://${trimmedValue}`;
+
+  try {
+    const url = new URL(urlWithProtocol);
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return { value: null, error: "CTA URL must start with http or https." };
+    }
+
+    return { value: url.toString(), error: null };
+  } catch {
+    return { value: null, error: "CTA URL must be a valid link." };
+  }
+}
+
 export function EventEditor({ eventId, mode }: EventEditorProps) {
   const router = useRouter();
   const [eventName, setEventName] = useState("");
@@ -135,14 +155,8 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
     if (start && end && end <= start) return "End time must be after start time.";
     if (endMessage.trim().length > 280) return "End message must be 280 characters or fewer.";
     if (endCtaLabel.trim().length > 40) return "CTA label must be 40 characters or fewer.";
-    if (endCtaUrl.trim()) {
-      try {
-        const url = new URL(endCtaUrl.trim());
-        if (!["http:", "https:"].includes(url.protocol)) return "CTA URL must start with http or https.";
-      } catch {
-        return "CTA URL must be a valid link.";
-      }
-    }
+    const normalizedCtaUrl = normalizeOptionalUrl(endCtaUrl);
+    if (normalizedCtaUrl.error) return normalizedCtaUrl.error;
     if (endCtaLabel.trim() && !endCtaUrl.trim()) return "CTA URL is required when CTA label is set.";
     if (!endCtaLabel.trim() && endCtaUrl.trim()) return "CTA label is required when CTA URL is set.";
     if (visibleDjs.length === 0) return "Add at least one DJ before saving.";
@@ -202,6 +216,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
     }
 
     setIsSaving(true);
+    const normalizedCtaUrl = normalizeOptionalUrl(endCtaUrl).value;
 
     let savedEvent: EventRow | null = null;
     if (mode === "create") {
@@ -212,7 +227,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
         ends_at: fromDateTimeLocal(endsAt),
         end_message: endMessage.trim() || DEFAULT_END_MESSAGE,
         end_cta_label: endCtaLabel.trim() || null,
-        end_cta_url: endCtaUrl.trim() || null,
+        end_cta_url: normalizedCtaUrl,
         like_mode: likeMode,
         is_active: true,
       });
@@ -232,7 +247,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
         ends_at: fromDateTimeLocal(endsAt),
         end_message: endMessage.trim() || DEFAULT_END_MESSAGE,
         end_cta_label: endCtaLabel.trim() || null,
-        end_cta_url: endCtaUrl.trim() || null,
+        end_cta_url: normalizedCtaUrl,
         like_mode: likeMode,
       });
 
@@ -252,7 +267,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
         ends_at: fromDateTimeLocal(endsAt),
         end_message: endMessage.trim() || DEFAULT_END_MESSAGE,
         end_cta_label: endCtaLabel.trim() || null,
-        end_cta_url: endCtaUrl.trim() || null,
+        end_cta_url: normalizedCtaUrl,
         like_mode: likeMode,
         is_active: true,
       };
@@ -469,9 +484,10 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
                 <Input
                   aria-label="CTA URL"
                   className="mt-2"
+                  inputMode="url"
                   onChange={(event) => setEndCtaUrl(event.target.value)}
-                  placeholder="https://example.com"
-                  type="url"
+                  placeholder="instagram.com/floorvibes"
+                  type="text"
                   value={endCtaUrl}
                 />
               </div>

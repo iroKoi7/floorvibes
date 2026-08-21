@@ -66,6 +66,11 @@ export async function createRequest(request: RequestInsert) {
     dj_id: request.dj_id ?? null,
     requested_by: request.requested_by ?? null,
     song_title: request.song_title,
+    song_artist: request.song_artist ?? null,
+    song_artwork_url: request.song_artwork_url ?? null,
+    song_provider: request.song_provider ?? null,
+    song_provider_id: request.song_provider_id ?? null,
+    song_url: request.song_url ?? null,
     status: request.status ?? "pending",
   };
 

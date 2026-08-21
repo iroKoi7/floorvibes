@@ -8,6 +8,7 @@ import {
   Heart,
   Music2,
   PartyPopper,
+  Search,
   Send,
   Sparkles,
 } from "lucide-react";
@@ -26,14 +27,17 @@ import {
 import { createEventLike, getLikedDjIds } from "@/lib/feedback-store";
 import { isLanguage, LANGUAGE_STORAGE_KEY, text, type Language } from "@/lib/i18n";
 import { createRequest, isUsingMockRequests } from "@/lib/request-store";
+import { formatSongRequestTitle, type SongSearchResult } from "@/lib/song-search";
 import type { DjRow, EventRow } from "@/lib/types";
 
 const AUDIENCE_EVENT_STORAGE_KEY = "floorvibes:audience-event";
 const AUDIENCE_DJ_STORAGE_KEY = "floorvibes:audience-dj-id";
 const AUDIENCE_SESSION_STORAGE_KEY = "floorvibes:audience-session";
 const REQUEST_COOLDOWN_STORAGE_KEY = "floorvibes:last-request-at";
-const REQUEST_COOLDOWN_MS = 30 * 1000;
+const REQUEST_COOLDOWN_MS = 60 * 1000;
 const AUDIENCE_SESSION_MS = 3 * 60 * 60 * 1000;
+const SONG_SEARCH_MIN_CHARS = 3;
+const SONG_SEARCH_DEBOUNCE_MS = 600;
 
 type AudienceSession = {
   id: string;
@@ -57,6 +61,10 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [eventSlug, setEventSlug] = useState(DEFAULT_EVENT_SLUG);
   const [language, setLanguage] = useState<Language>("en");
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [selectedSong, setSelectedSong] = useState<SongSearchResult | null>(null);
+  const [songResults, setSongResults] = useState<SongSearchResult[]>([]);
+  const [isSearchingSongs, setIsSearchingSongs] = useState(false);
+  const [songSearchError, setSongSearchError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -115,6 +123,58 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     const interval = window.setInterval(() => setCurrentTime(Date.now()), 30 * 1000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const query = songTitle.trim();
+    if (
+      query.length < SONG_SEARCH_MIN_CHARS ||
+      query === (selectedSong ? formatSongRequestTitle(selectedSong) : "")
+    ) {
+      setSongResults([]);
+      setIsSearchingSongs(false);
+      setSongSearchError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setIsSearchingSongs(true);
+      setSongSearchError(null);
+
+      try {
+        const response = await fetch(`/api/song-search?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
+        const data = (await response.json()) as {
+          results?: SongSearchResult[];
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Song search failed.");
+        }
+
+        setSongResults(data.results ?? []);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setSongResults([]);
+        setSongSearchError(
+          language === "ja"
+            ? "候補を取得できませんでした。手入力で送信できます。"
+            : "Could not load suggestions. You can still send manually.",
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearchingSongs(false);
+        }
+      }
+    }, SONG_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [language, selectedSong, songTitle]);
 
   useEffect(() => {
     async function loadEvents() {
@@ -209,6 +269,20 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
   }
 
+  function handleSongInput(nextValue: string) {
+    setSongTitle(nextValue);
+    if (!selectedSong || nextValue !== formatSongRequestTitle(selectedSong)) {
+      setSelectedSong(null);
+    }
+  }
+
+  function handleSongSelect(song: SongSearchResult) {
+    setSelectedSong(song);
+    setSongTitle(formatSongRequestTitle(song));
+    setSongResults([]);
+    setSongSearchError(null);
+  }
+
   function persistAudienceSession(name: string) {
     const trimmedName = name.trim();
     if (!trimmedName) return;
@@ -267,12 +341,19 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     }
 
     setIsSending(true);
+    const selectedSongStillMatches =
+      selectedSong && trimmedSong === formatSongRequestTitle(selectedSong);
     const { errorMessage } = await createRequest({
       event_id: selectedEvent?.id ?? null,
       dj_id: selectedDj.id,
       dj_name: selectedDj.name,
       requested_by: trimmedName,
-      song_title: trimmedSong,
+      song_title: selectedSongStillMatches ? selectedSong.title : trimmedSong,
+      song_artist: selectedSongStillMatches ? selectedSong.artist : null,
+      song_artwork_url: selectedSongStillMatches ? selectedSong.artworkUrl : null,
+      song_provider: selectedSongStillMatches ? selectedSong.provider : null,
+      song_provider_id: selectedSongStillMatches ? selectedSong.providerId : null,
+      song_url: selectedSongStillMatches ? selectedSong.url : null,
       status: "pending",
     });
     setIsSending(false);
@@ -283,6 +364,8 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     }
 
     setSongTitle("");
+    setSelectedSong(null);
+    setSongResults([]);
     persistAudienceSession(trimmedName);
     window.localStorage.setItem(REQUEST_COOLDOWN_STORAGE_KEY, String(Date.now()));
     setCooldownRemaining(Math.ceil(REQUEST_COOLDOWN_MS / 1000));
@@ -435,17 +518,76 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
                 <p className="text-xs font-bold text-slate-500">{copy.savedForSession}</p>
               </div>
 
-              <label className="block text-sm font-bold text-slate-200" htmlFor="song">
-                {copy.songLabel}
-              </label>
-              <Input
-                id="song"
-                value={songTitle}
-                onChange={(event) => setSongTitle(event.target.value)}
-                placeholder={copy.songPlaceholder}
-                maxLength={140}
-                autoComplete="off"
-              />
+              <div className="space-y-2">
+                <label className="block text-sm font-bold text-slate-200" htmlFor="song">
+                  {copy.songLabel}
+                </label>
+                <div className="relative">
+                  <Search
+                    className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-cyan-100/65"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    id="song"
+                    className="pl-12"
+                    value={songTitle}
+                    onChange={(event) => handleSongInput(event.target.value)}
+                    placeholder={copy.songPlaceholder}
+                    maxLength={140}
+                    autoComplete="off"
+                  />
+                </div>
+                {selectedSong ? (
+                  <p className="text-xs font-bold text-cyan-100">
+                    {language === "ja" ? "候補から選択済み" : "Selected from suggestions"}
+                  </p>
+                ) : null}
+                {isSearchingSongs ? (
+                  <p className="text-xs font-bold text-slate-400">
+                    {language === "ja" ? "候補を検索中..." : "Searching songs..."}
+                  </p>
+                ) : null}
+                {songSearchError ? (
+                  <p className="text-xs font-bold text-pink-100">{songSearchError}</p>
+                ) : null}
+                {songResults.length > 0 ? (
+                  <div className="overflow-hidden rounded-lg border border-white/10 bg-[#090411]">
+                    {songResults.map((song) => (
+                      <button
+                        className="flex min-h-16 w-full items-center gap-3 border-b border-white/10 px-3 py-2 text-left transition last:border-b-0 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-200"
+                        key={song.id}
+                        onClick={() => handleSongSelect(song)}
+                        type="button"
+                      >
+                        {song.artworkUrl ? (
+                          <img
+                            alt=""
+                            className="h-12 w-12 shrink-0 rounded-md object-cover"
+                            src={song.artworkUrl}
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-cyan-200/20 bg-cyan-200/10">
+                            <Music2 className="h-5 w-5 text-cyan-100" aria-hidden="true" />
+                          </div>
+                        )}
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-black text-white">
+                            {song.title}
+                          </span>
+                          <span className="block truncate text-xs font-bold text-pink-100/85">
+                            {song.artist}
+                          </span>
+                          {song.album ? (
+                            <span className="block truncate text-xs text-slate-500">
+                              {song.album}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <Button
                 className="w-full"
                 disabled={
