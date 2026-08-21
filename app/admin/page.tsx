@@ -24,7 +24,12 @@ import { AdminSignOutButton } from "@/app/admin/_components/admin-sign-out-butto
 import { getAdminEvents, getDjsForEvent } from "@/lib/event-store";
 import { getDjLikeCounts } from "@/lib/feedback-store";
 import { getEventRequests } from "@/lib/request-store";
-import type { DjRow, EventLikeMode, EventRow, RequestRow } from "@/lib/types";
+import type {
+  DjRow,
+  EventLikeMode,
+  EventRow,
+  RequestRow,
+} from "@/lib/types";
 
 type Feedback = {
   type: "success" | "error";
@@ -191,7 +196,7 @@ export default function AdminPage() {
         <div>
           <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-pink-200">
             <Settings2 className="h-4 w-4" aria-hidden="true" />
-            FloorVibes Admin
+            FloorVibes Owner Console
           </p>
           <h1 className="mt-1 text-3xl font-black text-white">Events</h1>
         </div>

@@ -116,9 +116,9 @@ function AdminLoginContent() {
           </div>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-pink-200">
-              FloorVibes Admin
+              FloorVibes Owner Console
             </p>
-            <h1 className="mt-1 text-2xl font-black text-white">Admin login</h1>
+            <h1 className="mt-1 text-2xl font-black text-white">Owner login</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-400">
               Audience and DJ links stay public. Event management is protected here.
             </p>
@@ -127,7 +127,7 @@ function AdminLoginContent() {
 
         {!isSupabaseConfigured ? (
           <div className="mt-5 rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm font-bold text-cyan-50">
-            Local mock mode is active, so admin login is skipped.
+            Local mock mode is active, so owner login is skipped.
           </div>
         ) : null}
 
@@ -150,7 +150,7 @@ function AdminLoginContent() {
             onClick={() => setMode("sign-up")}
             type="button"
           >
-            Create admin
+            Create owner
           </button>
         </div>
 
@@ -204,7 +204,7 @@ function AdminLoginContent() {
 
           <Button className="w-full" disabled={isSubmitting || !isSupabaseConfigured} type="submit">
             {mode === "sign-up" ? <UserPlus className="h-5 w-5" aria-hidden="true" /> : null}
-            {isSubmitting ? "Working..." : mode === "sign-in" ? "Sign in" : "Create admin account"}
+            {isSubmitting ? "Working..." : mode === "sign-in" ? "Sign in" : "Create owner account"}
           </Button>
         </form>
       </Card>
@@ -217,7 +217,7 @@ export default function AdminLoginPage() {
     <Suspense
       fallback={
         <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-8">
-          <Card className="w-full p-5 text-sm font-bold text-slate-300">Loading admin login...</Card>
+          <Card className="w-full p-5 text-sm font-bold text-slate-300">Loading owner login...</Card>
         </main>
       }
     >

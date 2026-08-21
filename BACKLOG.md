@@ -3,7 +3,7 @@
 ## High Priority
 
 - DJ timeline and current turn
-  - Let admins assign DJs to event time ranges.
+  - Let event owners assign DJs to event time ranges.
   - Auto-select the current DJ on Audience and DJ screens based on the current time.
   - Show the current turn clearly in the top-left "Now playing" area.
   - Keep manual DJ selection available as an override for irregular event operations.
@@ -11,7 +11,7 @@
   - Test priority for 2026-08-23.
 
 - Production load check
-  - Validate the app can handle a real event with 100-200 concurrent audience users plus DJ/admin usage.
+  - Validate the app can handle a real event with 100-200 concurrent audience users plus DJ/owner usage.
   - Test request bursts from many audience devices.
   - Watch Supabase Realtime behavior, request insert/update latency, and Vercel client load.
   - Confirm the DJ dashboard remains usable when many requests arrive in a short window.
@@ -19,9 +19,16 @@
 - Test-day runbook
   - Prepare one checklist for the 2026-08-23 test event.
   - Confirm Supabase migrations are applied before deploy.
-  - Confirm production URLs for Audience, DJ, and Admin.
+  - Confirm production URLs for Audience, DJ, and Owner Console.
   - Confirm QR/share links open the intended event.
   - Prepare fallback operation if realtime or song search becomes unstable.
+
+- Public service LP
+  - Publish a lightweight FloorVibes service page separate from the Owner Console.
+  - Explain what the service does, who it is for, and the basic flow.
+  - Include a simple contact path for event use, collaboration, or questions.
+  - Keep product feedback collection as a separate feature, not the LP's main purpose.
+  - Store LP contact messages in Supabase for the developer to review.
 
 ## Medium Priority
 
@@ -33,10 +40,27 @@
   - Only group unresolved requests, excluding played or dismissed requests.
   - If a grouping job is already running, do not enqueue another job; leave new requests for the next trigger.
 
-- Admin login follow-up
+- Event owner login follow-up
   - Verify Supabase Auth email settings in production.
-  - Decide whether legacy events with `owner_id = null` should be claimed by the first admin.
+  - Treat `/admin` as the event owner console rather than a service-wide admin area.
+  - Decide whether legacy events with `owner_id = null` should be claimed by the first owner.
   - Consider Google login after the email/password flow is stable.
+
+- Feedback and contact experience
+  - Add event-end feedback collection separate from the public LP.
+  - Let audience members send event feedback after the event closes.
+  - Consider DJ-specific feedback and overall event feedback.
+  - Add a lightweight developer/contact path for beta testers and event organizers.
+
+- Operator/developer console
+  - Add a separate service-operator role when service-wide management is needed.
+  - Keep LP contact messages, cross-event diagnostics, and global usage views out of the event owner console.
+  - Consider a future `/operator` route guarded by operator-only authorization.
+
+- Owner Console URL cleanup after the 2026-08-23 test
+  - Keep `/admin` unchanged before the test event to avoid routing/deploy risk.
+  - Revisit whether `/admin` should become `/owner` or another event-owner-facing URL.
+  - If the URL changes, add redirects so existing owner links keep working.
 
 ## Lower Priority Ideas
 
@@ -54,8 +78,8 @@
   - Show the user's own request history for the current event/session.
   - Update the history when a DJ marks a request as played.
   - Let DJs review requests they already marked as played or dismissed during the event.
-  - Let Admin review all event requests across DJs as a post-event report.
-  - Align request status UI across Audience, DJ, and Admin.
+  - Let event owners review all event requests across DJs as a post-event report.
+  - Align request status UI across Audience, DJ, and Owner Console.
 
 - Request grouping MVP
   - Group pending DJ requests by search-selected provider ID, with exact normalized text fallback.
@@ -71,7 +95,7 @@
 
 - Event end experience
   - Close Audience and DJ event URLs automatically when the event end time passes.
-  - Let admins define the post-event message.
+  - Let event owners define the post-event message.
   - Show CTA links on the post-event screen.
   - Collect DJ likes after the event.
-  - Show event status and DJ like results in Admin.
+  - Show event status and DJ like results in Owner Console.

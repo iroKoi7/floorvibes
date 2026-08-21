@@ -1,5 +1,6 @@
 export type RequestStatus = "pending" | "played" | "dismissed";
 export type EventLikeMode = "single" | "multiple";
+export type ContactMessageStatus = "new" | "reviewed" | "archived";
 
 export type EventRow = {
   id: string;
@@ -123,6 +124,24 @@ export type EventLikeInsert = {
   audience_name?: string | null;
 };
 
+export type ContactMessageRow = {
+  id: string;
+  created_at: string;
+  subject: string;
+  body: string;
+  contact: string | null;
+  source: string;
+  status: ContactMessageStatus;
+};
+
+export type ContactMessageInsert = {
+  subject: string;
+  body: string;
+  contact?: string | null;
+  source?: string;
+  status?: ContactMessageStatus;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -188,6 +207,12 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      contact_messages: {
+        Row: ContactMessageRow;
+        Insert: ContactMessageInsert;
+        Update: never;
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

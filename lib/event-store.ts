@@ -119,7 +119,7 @@ export async function getAdminEvents() {
   if (supabase) {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
-      return { data: [], errorMessage: userError?.message ?? "Admin login is required." };
+      return { data: [], errorMessage: userError?.message ?? "Owner login is required." };
     }
 
     const { data, error } = await supabase
@@ -157,7 +157,7 @@ export async function getEventById(id: string) {
   if (supabase) {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
-      return { data: null, errorMessage: userError?.message ?? "Admin login is required." };
+      return { data: null, errorMessage: userError?.message ?? "Owner login is required." };
     }
 
     const { data, error } = await supabase
@@ -203,7 +203,7 @@ export async function createEvent(event: EventInsert) {
   if (supabase) {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
-      return { data: null, errorMessage: userError?.message ?? "Admin login is required." };
+      return { data: null, errorMessage: userError?.message ?? "Owner login is required." };
     }
 
     const { data, error } = await supabase

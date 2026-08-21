@@ -425,7 +425,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
         <div>
           <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-pink-200">
             <Settings2 className="h-4 w-4" aria-hidden="true" />
-            FloorVibes Admin
+            FloorVibes Owner Console
           </p>
           <h1 className="mt-1 text-3xl font-black text-white">
             {mode === "create" ? "Create event" : "Edit event"}

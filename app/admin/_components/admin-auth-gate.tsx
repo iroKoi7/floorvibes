@@ -62,7 +62,7 @@ export function AdminAuthGate({ children }: AdminAuthGateProps) {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-cyan-200/20 bg-cyan-200/10 text-cyan-100">
             <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
           </div>
-          <p className="mt-4 text-sm font-bold text-slate-300">Checking admin session...</p>
+          <p className="mt-4 text-sm font-bold text-slate-300">Checking owner session...</p>
         </Card>
       </main>
     );
@@ -78,7 +78,7 @@ export function AdminLockedFallback() {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-pink-300/20 bg-pink-300/10 text-pink-100">
           <LockKeyhole className="h-5 w-5" aria-hidden="true" />
         </div>
-        <p className="mt-4 text-sm font-bold text-slate-300">Admin login is required.</p>
+        <p className="mt-4 text-sm font-bold text-slate-300">Owner login is required.</p>
       </Card>
     </main>
   );
