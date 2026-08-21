@@ -17,6 +17,7 @@ import { AudienceShareCard } from "@/components/audience-share-card";
 import { Card } from "@/components/ui/card";
 import { LanguageToggle } from "@/components/language-toggle";
 import { LocalModeNotice } from "@/components/local-mode-notice";
+import { RequestStatusBadge } from "@/components/request-status-badge";
 import { Select } from "@/components/ui/select";
 import {
   DEFAULT_EVENT_SLUG,
@@ -31,6 +32,7 @@ import {
   isUsingMockRequests,
   subscribeToRequestChanges,
   updateRequestStatus,
+  updateRequestStatuses,
 } from "@/lib/request-store";
 import { getDjLikeCounts } from "@/lib/feedback-store";
 import type { DjRow, EventRow, RequestRow, RequestStatus } from "@/lib/types";
@@ -46,6 +48,48 @@ type DjPageProps = {
   fixedEventSlug?: string;
 };
 
+type RequestGroup = {
+  key: string;
+  primary: RequestRow;
+  requests: RequestRow[];
+};
+
+function normalizeSongKey(request: RequestRow) {
+  if (request.song_provider && request.song_provider_id) {
+    return `${request.song_provider}:${request.song_provider_id}`;
+  }
+
+  return [
+    request.song_title.trim().toLowerCase().replace(/\s+/g, " "),
+    request.song_artist?.trim().toLowerCase().replace(/\s+/g, " ") ?? "",
+  ].join("|");
+}
+
+function groupRequestsBySong(requests: RequestRow[]) {
+  const groups = new Map<string, RequestGroup>();
+
+  requests.forEach((request) => {
+    const key = normalizeSongKey(request);
+    const group = groups.get(key);
+
+    if (group) {
+      group.requests.push(request);
+      return;
+    }
+
+    groups.set(key, {
+      key,
+      primary: request,
+      requests: [request],
+    });
+  });
+
+  return [...groups.values()].sort(
+    (a, b) =>
+      new Date(b.primary.created_at).getTime() - new Date(a.primary.created_at).getTime(),
+  );
+}
+
 export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [djs, setDjs] = useState<DjRow[]>([]);
@@ -59,6 +103,7 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
   const [language, setLanguage] = useState<Language>("en");
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const activeCount = requests.length;
+  const requestGroups = groupRequestsBySong(requests);
   const copy = text[language];
   const selectedEvent = events.find((event) => event.id === eventId) ?? null;
   const selectedDj = djs.find((dj) => dj.id === djId) ?? null;
@@ -192,10 +237,14 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
     );
   }, [isEventEnded, loadRequests, selectedDj, selectedEvent]);
 
-  async function updateStatus(id: string, status: Exclude<RequestStatus, "pending">) {
-    setRequests((current) => current.filter((request) => request.id !== id));
+  async function updateStatus(ids: string | string[], status: Exclude<RequestStatus, "pending">) {
+    const targetIds = Array.isArray(ids) ? ids : [ids];
+    setRequests((current) => current.filter((request) => !targetIds.includes(request.id)));
 
-    const { errorMessage } = await updateRequestStatus(id, status);
+    const { errorMessage } =
+      targetIds.length === 1
+        ? await updateRequestStatus(targetIds[0], status)
+        : await updateRequestStatuses(targetIds, status);
     if (errorMessage) {
       setErrorMessage(errorMessage);
       await loadRequests();
@@ -324,8 +373,14 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
             </Card>
           ) : null}
 
-          {requests.map((request) => (
-            <Card key={request.id} className="relative overflow-hidden p-4">
+          {requestGroups.map((group) => {
+            const request = group.primary;
+            const requestCount = group.requests.length;
+            const requesterNames = [
+              ...new Set(group.requests.map((item) => item.requested_by).filter(Boolean)),
+            ];
+            return (
+            <Card key={group.key} className="relative overflow-hidden p-4">
               <div
                 className="absolute inset-y-0 left-0 w-1 bg-[linear-gradient(180deg,#fb5ab8,#38dfff,#a855f7)]"
                 aria-hidden="true"
@@ -363,9 +418,16 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
                         {request.song_artist}
                       </p>
                     ) : null}
-                    {request.requested_by ? (
+                    {requesterNames.length > 0 ? (
                       <p className="mt-2 text-sm font-bold text-pink-100/80">
-                        {copy.requestedBy}: {request.requested_by}
+                        {copy.requestedBy}: {requesterNames.join(", ")}
+                      </p>
+                    ) : null}
+                    {requestCount > 1 ? (
+                      <p className="mt-2 inline-flex w-fit rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2 py-1 text-xs font-black text-cyan-100">
+                        {language === "ja"
+                          ? `${requestCount}件の同曲リクエスト`
+                          : `${requestCount} matching requests`}
                       </p>
                     ) : null}
                   </div>
@@ -373,14 +435,14 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
                   <Button
                     variant="secondary"
-                    onClick={() => void updateStatus(request.id, "played")}
+                    onClick={() => void updateStatus(group.requests.map((item) => item.id), "played")}
                   >
                     <Check className="h-5 w-5" aria-hidden="true" />
                     {copy.played}
                   </Button>
                   <Button
                     variant="danger"
-                    onClick={() => void updateStatus(request.id, "dismissed")}
+                    onClick={() => void updateStatus(group.requests.map((item) => item.id), "dismissed")}
                   >
                     <Trash2 className="h-5 w-5" aria-hidden="true" />
                     {copy.dismiss}
@@ -388,7 +450,8 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
                 </div>
               </div>
             </Card>
-          ))}
+          );
+          })}
 
           {!isLoading && answeredRequests.length > 0 ? (
             <Card className="p-4">
@@ -407,7 +470,6 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
               </div>
               <div className="space-y-2">
                 {answeredRequests.slice(0, 8).map((request) => {
-                  const played = request.status === "played";
                   return (
                     <div
                       className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.035] p-3"
@@ -426,20 +488,18 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-black text-white">{request.song_title}</p>
+                        {request.song_artist ? (
+                          <p className="mt-0.5 truncate text-xs font-bold text-cyan-100/75">
+                            {request.song_artist}
+                          </p>
+                        ) : null}
                         <p className="mt-0.5 truncate text-xs font-bold text-slate-500">
-                          {request.song_artist ?? request.requested_by ?? formatTime(request.created_at)}
+                          {request.requested_by
+                            ? `${copy.requestedBy}: ${request.requested_by}`
+                            : formatTime(request.created_at)}
                         </p>
                       </div>
-                      <span
-                        className={[
-                          "rounded-full border px-2 py-1 text-[11px] font-black",
-                          played
-                            ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
-                            : "border-slate-500/25 bg-slate-500/10 text-slate-300",
-                        ].join(" ")}
-                      >
-                        {played ? copy.played : copy.dismiss}
-                      </span>
+                      <RequestStatusBadge compact status={request.status} />
                     </div>
                   );
                 })}

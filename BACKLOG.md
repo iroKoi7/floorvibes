@@ -23,6 +23,8 @@
 - Request grouping
   - Group similar song requests for the same DJ.
   - Start with deterministic normalization and search-selected metadata before adding AI-assisted matching.
+  - MVP: group pending DJ requests by search-selected provider ID, with exact normalized text fallback.
+  - MVP: show event-level Waiting/Played signals on audience song search results.
   - Run grouping in batches instead of on every request.
   - Trigger a grouping job after roughly 10 new pending requests for a DJ/event.
   - Only group unresolved requests, excluding played or dismissed requests.

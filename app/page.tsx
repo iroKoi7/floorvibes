@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
   AudioWaveform,
-  CheckCircle2,
   Disc3,
   ExternalLink,
   Heart,
@@ -12,13 +11,13 @@ import {
   Search,
   Send,
   Sparkles,
-  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { LanguageToggle } from "@/components/language-toggle";
 import { LocalModeNotice } from "@/components/local-mode-notice";
+import { RequestStatusBadge } from "@/components/request-status-badge";
 import { Select } from "@/components/ui/select";
 import {
   DEFAULT_EVENT_SLUG,
@@ -31,11 +30,13 @@ import { isLanguage, LANGUAGE_STORAGE_KEY, text, type Language } from "@/lib/i18
 import {
   createRequest,
   getAudienceRequests,
+  getSongRequestSignals,
   isUsingMockRequests,
+  type SongRequestSignal,
   subscribeToRequestChanges,
 } from "@/lib/request-store";
 import { formatSongRequestTitle, type SongSearchResult } from "@/lib/song-search";
-import type { DjRow, EventRow, RequestRow, RequestStatus } from "@/lib/types";
+import type { DjRow, EventRow, RequestRow } from "@/lib/types";
 
 const AUDIENCE_EVENT_STORAGE_KEY = "floorvibes:audience-event";
 const AUDIENCE_DJ_STORAGE_KEY = "floorvibes:audience-dj-id";
@@ -63,12 +64,6 @@ function formatRequestTime(value: string) {
   }).format(new Date(value));
 }
 
-function getStatusCopy(status: RequestStatus, language: Language) {
-  if (status === "played") return "Played!";
-  if (status === "dismissed") return language === "ja" ? "見送り" : "Dismissed";
-  return "Waiting...";
-}
-
 export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [songTitle, setSongTitle] = useState("");
   const [audienceName, setAudienceName] = useState("");
@@ -83,6 +78,7 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [selectedSong, setSelectedSong] = useState<SongSearchResult | null>(null);
   const [songResults, setSongResults] = useState<SongSearchResult[]>([]);
+  const [songSignals, setSongSignals] = useState<Record<string, SongRequestSignal>>({});
   const [audienceRequests, setAudienceRequests] = useState<RequestRow[]>([]);
   const [isSearchingSongs, setIsSearchingSongs] = useState(false);
   const [songSearchError, setSongSearchError] = useState<string | null>(null);
@@ -279,6 +275,23 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
       },
     );
   }, [audienceSessionId, eventId]);
+
+  useEffect(() => {
+    if (!eventId || songResults.length === 0) {
+      setSongSignals({});
+      return;
+    }
+
+    async function loadSongSignals() {
+      const { data } = await getSongRequestSignals(
+        eventId,
+        songResults.map((song) => song.providerId),
+      );
+      setSongSignals(data);
+    }
+
+    void loadSongSignals();
+  }, [eventId, songResults]);
 
   useEffect(() => {
     function syncCooldown() {
@@ -594,39 +607,52 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
                 ) : null}
                 {songResults.length > 0 ? (
                   <div className="overflow-hidden rounded-lg border border-white/10 bg-[#090411]">
-                    {songResults.map((song) => (
-                      <button
-                        className="flex min-h-16 w-full items-center gap-3 border-b border-white/10 px-3 py-2 text-left transition last:border-b-0 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-200"
-                        key={song.id}
-                        onClick={() => handleSongSelect(song)}
-                        type="button"
-                      >
-                        {song.artworkUrl ? (
-                          <img
-                            alt=""
-                            className="h-12 w-12 shrink-0 rounded-md object-cover"
-                            src={song.artworkUrl}
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-cyan-200/20 bg-cyan-200/10">
-                            <Music2 className="h-5 w-5 text-cyan-100" aria-hidden="true" />
-                          </div>
-                        )}
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-black text-white">
-                            {song.title}
+                    {songResults.map((song) => {
+                      const signal = songSignals[song.providerId];
+                      return (
+                        <button
+                          className="flex min-h-16 w-full items-center gap-3 border-b border-white/10 px-3 py-2 text-left transition last:border-b-0 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-200"
+                          key={song.id}
+                          onClick={() => handleSongSelect(song)}
+                          type="button"
+                        >
+                          {song.artworkUrl ? (
+                            <img
+                              alt=""
+                              className="h-12 w-12 shrink-0 rounded-md object-cover"
+                              src={song.artworkUrl}
+                            />
+                          ) : (
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-cyan-200/20 bg-cyan-200/10">
+                              <Music2 className="h-5 w-5 text-cyan-100" aria-hidden="true" />
+                            </div>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-black text-white">
+                              {song.title}
+                            </span>
+                            <span className="block truncate text-xs font-bold text-pink-100/85">
+                              {song.artist}
+                            </span>
+                            {song.album ? (
+                              <span className="block truncate text-xs text-slate-500">
+                                {song.album}
+                              </span>
+                            ) : null}
                           </span>
-                          <span className="block truncate text-xs font-bold text-pink-100/85">
-                            {song.artist}
-                          </span>
-                          {song.album ? (
-                            <span className="block truncate text-xs text-slate-500">
-                              {song.album}
+                          {signal ? (
+                            <span className="flex shrink-0 flex-col items-end gap-1">
+                              <RequestStatusBadge compact status={signal.status} />
+                              {signal.count > 1 ? (
+                                <span className="text-[10px] font-black text-slate-500">
+                                  {signal.count} req
+                                </span>
+                              ) : null}
                             </span>
                           ) : null}
-                        </span>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : null}
               </div>
@@ -707,28 +733,10 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
                           {request.song_title}
                         </p>
                         <p className="mt-0.5 truncate text-xs font-bold text-slate-400">
-                          {request.song_artist ?? request.dj_name} · {formatRequestTime(request.created_at)}
+                          {request.song_artist ?? (language === "ja" ? "アーティスト不明" : "Unknown artist")} · {formatRequestTime(request.created_at)}
                         </p>
                       </div>
-                      <div
-                        className={[
-                          "flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-black",
-                          played
-                            ? "border-cyan-300/30 bg-cyan-300/12 text-cyan-50"
-                            : dismissed
-                              ? "border-slate-500/25 bg-slate-500/10 text-slate-300"
-                              : "border-pink-300/25 bg-pink-300/10 text-pink-100",
-                        ].join(" ")}
-                      >
-                        {played ? (
-                          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        ) : dismissed ? (
-                          <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                        ) : (
-                          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                        )}
-                        {getStatusCopy(request.status, language)}
-                      </div>
+                      <RequestStatusBadge compact status={request.status} />
                     </div>
                   );
                 })}

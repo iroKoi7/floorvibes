@@ -18,12 +18,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { RequestStatusBadge } from "@/components/request-status-badge";
 import { AdminAuthGate } from "@/app/admin/_components/admin-auth-gate";
 import { AdminSignOutButton } from "@/app/admin/_components/admin-sign-out-button";
 import { getAdminEvents, getDjsForEvent } from "@/lib/event-store";
 import { getDjLikeCounts } from "@/lib/feedback-store";
 import { getEventRequests } from "@/lib/request-store";
-import type { DjRow, EventLikeMode, EventRow, RequestRow, RequestStatus } from "@/lib/types";
+import type { DjRow, EventLikeMode, EventRow, RequestRow } from "@/lib/types";
 
 type Feedback = {
   type: "success" | "error";
@@ -108,12 +109,6 @@ const statusConfig: Record<
 
 function formatLikeMode(value: EventLikeMode) {
   return value === "single" ? "One DJ only" : "Multiple DJs";
-}
-
-function formatRequestStatus(value: RequestStatus) {
-  if (value === "played") return "Played";
-  if (value === "dismissed") return "Dismissed";
-  return "Pending";
 }
 
 export default function AdminPage() {
@@ -360,8 +355,8 @@ export default function AdminPage() {
                     <div className="grid grid-cols-4 gap-2 text-center">
                       {[
                         ["Total", requestCounts.total],
-                        ["Played", requestCounts.played],
-                        ["Pending", requestCounts.pending],
+                        ["Played!", requestCounts.played],
+                        ["Waiting...", requestCounts.pending],
                         ["Dismissed", requestCounts.dismissed],
                       ].map(([label, count]) => (
                         <div className="rounded-lg border border-white/10 bg-[#12091f]/70 px-2 py-2" key={label}>
@@ -384,26 +379,29 @@ export default function AdminPage() {
                     <div className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-white/10">
                       {requests.slice(0, 60).map((request) => (
                         <div
-                          className="grid gap-2 border-b border-white/10 bg-[#080310]/55 px-3 py-3 last:border-b-0 sm:grid-cols-[1.2fr_120px_110px_100px] sm:items-center"
+                          className="grid gap-2 border-b border-white/10 bg-[#080310]/55 px-3 py-3 last:border-b-0 sm:grid-cols-[1.2fr_120px_120px_110px_100px] sm:items-center"
                           key={request.id}
                         >
                           <div className="min-w-0">
                             <p className="truncate text-sm font-black text-white">
                               {request.song_title}
                             </p>
-                            <p className="mt-0.5 truncate text-xs font-bold text-slate-500">
-                              {request.song_artist ?? request.requested_by ?? "Manual request"}
-                            </p>
+                            {request.song_artist ? (
+                              <p className="mt-0.5 truncate text-xs font-bold text-cyan-100/75">
+                                {request.song_artist}
+                              </p>
+                            ) : null}
                           </div>
                           <p className="truncate text-xs font-bold text-pink-100/85">
                             {request.dj_name}
                           </p>
+                          <p className="truncate text-xs font-bold text-slate-400">
+                            {request.requested_by ?? "Anonymous"}
+                          </p>
                           <p className="text-xs font-bold text-slate-400">
                             {formatDate(request.created_at)}
                           </p>
-                          <p className="w-fit rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-black text-slate-200">
-                            {formatRequestStatus(request.status)}
-                          </p>
+                          <RequestStatusBadge compact status={request.status} />
                         </div>
                       ))}
                     </div>

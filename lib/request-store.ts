@@ -14,6 +14,13 @@ type RequestScope = {
   audienceSessionId?: string | null;
 };
 
+export type SongRequestSignal = {
+  status: RequestStatus;
+  count: number;
+  pendingCount: number;
+  playedCount: number;
+};
+
 function createMockId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -209,6 +216,72 @@ export async function getEventRequests(eventId: string) {
   };
 }
 
+function buildSongRequestSignals(requests: RequestRow[]) {
+  return requests.reduce<Record<string, SongRequestSignal>>((signals, request) => {
+    if (!request.song_provider_id) return signals;
+
+    const current = signals[request.song_provider_id] ?? {
+      status: request.status,
+      count: 0,
+      pendingCount: 0,
+      playedCount: 0,
+    };
+
+    const pendingCount = current.pendingCount + (request.status === "pending" ? 1 : 0);
+    const playedCount = current.playedCount + (request.status === "played" ? 1 : 0);
+    const count = current.count + 1;
+
+    signals[request.song_provider_id] = {
+      count,
+      pendingCount,
+      playedCount,
+      status:
+        pendingCount > 0
+          ? "pending"
+          : playedCount > 0
+            ? "played"
+            : request.status === "dismissed"
+              ? current.status
+              : request.status,
+    };
+
+    return signals;
+  }, {});
+}
+
+export async function getSongRequestSignals(eventId: string, providerIds: string[]) {
+  const uniqueProviderIds = [...new Set(providerIds.filter(Boolean))];
+  if (uniqueProviderIds.length === 0) {
+    return { data: {} as Record<string, SongRequestSignal>, errorMessage: null };
+  }
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("requests")
+      .select("*")
+      .eq("event_id", eventId)
+      .in("song_provider_id", uniqueProviderIds)
+      .in("status", ["pending", "played", "dismissed"]);
+
+    return {
+      data: buildSongRequestSignals(data ?? []),
+      errorMessage: error?.message ?? null,
+    };
+  }
+
+  return {
+    data: buildSongRequestSignals(
+      readMockRequests().filter(
+        (request) =>
+          request.event_id === eventId &&
+          Boolean(request.song_provider_id) &&
+          uniqueProviderIds.includes(request.song_provider_id ?? ""),
+      ),
+    ),
+    errorMessage: null,
+  };
+}
+
 export async function updateRequestStatus(
   id: string,
   status: Exclude<RequestStatus, "pending">,
@@ -221,6 +294,27 @@ export async function updateRequestStatus(
   writeMockRequests(
     readMockRequests().map((request) =>
       request.id === id ? { ...request, status } : request,
+    ),
+  );
+
+  return { errorMessage: null };
+}
+
+export async function updateRequestStatuses(
+  ids: string[],
+  status: Exclude<RequestStatus, "pending">,
+) {
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) return { errorMessage: null };
+
+  if (supabase) {
+    const { error } = await supabase.from("requests").update({ status }).in("id", uniqueIds);
+    return { errorMessage: error?.message ?? null };
+  }
+
+  writeMockRequests(
+    readMockRequests().map((request) =>
+      uniqueIds.includes(request.id) ? { ...request, status } : request,
     ),
   );
 
