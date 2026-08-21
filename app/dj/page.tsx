@@ -317,13 +317,20 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 gap-3">
                   {request.song_artwork_url ? (
-                    <img
-                      alt=""
-                      className="mt-1 h-16 w-16 shrink-0 rounded-lg object-cover shadow-[0_0_22px_rgba(56,223,255,0.12)]"
-                      src={request.song_artwork_url}
-                    />
+                    <a
+                      className="mt-1 h-16 w-16 shrink-0 overflow-hidden rounded-lg shadow-[0_0_22px_rgba(56,223,255,0.12)] transition hover:scale-[1.02]"
+                      href={request.song_url ?? undefined}
+                      rel="noreferrer"
+                      target={request.song_url ? "_blank" : undefined}
+                    >
+                      <img
+                        alt=""
+                        className="h-full w-full object-cover"
+                        src={request.song_artwork_url}
+                      />
+                    </a>
                   ) : (
-                    <div className="mt-1 hidden h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-cyan-200/15 bg-cyan-200/10 text-cyan-100 sm:flex">
+                    <div className="mt-1 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-cyan-200/15 bg-cyan-200/10 text-cyan-100">
                       <Music2 className="h-6 w-6" aria-hidden="true" />
                     </div>
                   )}
