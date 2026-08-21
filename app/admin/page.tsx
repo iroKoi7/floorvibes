@@ -14,10 +14,10 @@ import {
   ListMusic,
   Pencil,
   Plus,
-  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { BrandLockup } from "@/components/brand-lockup";
 import { RequestStatusBadge } from "@/components/request-status-badge";
 import { AdminAuthGate } from "@/app/admin/_components/admin-auth-gate";
 import { AdminSignOutButton } from "@/app/admin/_components/admin-sign-out-button";
@@ -194,10 +194,7 @@ export default function AdminPage() {
       <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 py-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-pink-200">
-            <Settings2 className="h-4 w-4" aria-hidden="true" />
-            FloorVibes Owner Console
-          </p>
+          <BrandLockup size="sm" suffix="Owner Console" />
           <h1 className="mt-1 text-3xl font-black text-white">Events</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">

@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
   AudioWaveform,
-  Disc3,
+  CalendarClock,
+  Clock3,
   ExternalLink,
   Heart,
   Music2,
@@ -11,10 +12,12 @@ import {
   Search,
   Send,
   Sparkles,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { BrandLockup } from "@/components/brand-lockup";
 import { LanguageToggle } from "@/components/language-toggle";
 import { LocalModeNotice } from "@/components/local-mode-notice";
 import { RequestStatusBadge } from "@/components/request-status-badge";
@@ -37,7 +40,11 @@ import {
   subscribeToRequestChanges,
 } from "@/lib/request-store";
 import { formatSongRequestTitle, type SongSearchResult } from "@/lib/song-search";
-import { getCurrentTimelineSlot } from "@/lib/dj-timeline";
+import {
+  getCurrentTimelineSlot,
+  getNextTimelineSlot,
+  sortTimelineSlots,
+} from "@/lib/dj-timeline";
 import type { DjRow, DjTimelineSlotRow, EventRow, RequestRow } from "@/lib/types";
 
 const AUDIENCE_EVENT_STORAGE_KEY = "floorvibes:audience-event";
@@ -66,6 +73,10 @@ function formatRequestTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatTimelineRange(slot: DjTimelineSlotRow) {
+  return `${formatRequestTime(slot.starts_at)} - ${formatRequestTime(slot.ends_at)}`;
+}
+
 export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [songTitle, setSongTitle] = useState("");
   const [audienceName, setAudienceName] = useState("");
@@ -89,12 +100,16 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [isSending, setIsSending] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const copy = text[language];
   const isCoolingDown = cooldownRemaining > 0;
   const selectedEvent = events.find((event) => event.id === eventId) ?? null;
   const selectedDj = djs.find((dj) => dj.id === djId) ?? null;
   const currentTimelineSlot = getCurrentTimelineSlot(timelineSlots, currentTime);
+  const nextTimelineSlot = getNextTimelineSlot(timelineSlots, currentTime);
+  const sortedTimelineSlots = sortTimelineSlots(timelineSlots);
   const currentTurnDj = djs.find((dj) => dj.id === currentTimelineSlot?.dj_id) ?? null;
+  const nextTurnDj = djs.find((dj) => dj.id === nextTimelineSlot?.dj_id) ?? null;
   const isEventEnded = Boolean(
     selectedEvent?.ends_at && new Date(selectedEvent.ends_at).getTime() <= currentTime,
   );
@@ -454,11 +469,33 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 py-5 sm:px-6">
       <header className="flex items-center justify-between gap-3 py-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-pink-200">
             {copy.nowPlaying}
           </p>
-          <h1 className="mt-1 text-2xl font-black text-white">{djName}</h1>
+          <h1 className="mt-1 truncate text-2xl font-black text-white">{djName}</h1>
+          {currentTimelineSlot ? (
+            <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-cyan-100">
+              <Clock3 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {formatTimelineRange(currentTimelineSlot)}
+            </p>
+          ) : null}
+          {nextTimelineSlot && nextTurnDj ? (
+            <p className="mt-0.5 truncate text-xs font-bold text-slate-500">
+              {language === "ja" ? "次" : "Next"}: {nextTurnDj.name} ·{" "}
+              {formatTimelineRange(nextTimelineSlot)}
+            </p>
+          ) : null}
+          {sortedTimelineSlots.length > 0 ? (
+            <button
+              className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-xs font-black text-slate-200 transition hover:bg-white/10 hover:text-white"
+              onClick={() => setIsTimelineOpen(true)}
+              type="button"
+            >
+              <CalendarClock className="h-3.5 w-3.5 text-pink-100" aria-hidden="true" />
+              {language === "ja" ? "タイムライン" : "Timeline"}
+            </button>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <LanguageToggle language={language} onChange={handleLanguageChange} />
@@ -471,14 +508,17 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
       <section className="flex flex-1 items-center py-8">
         <div className="w-full">
           <div className="mb-7">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-pink-300/30 bg-pink-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-pink-100">
+            <div className="mb-4 inline-flex rounded-lg border border-pink-300/20 bg-pink-300/10 px-3 py-2">
+              <BrandLockup size="sm" />
+            </div>
+            <div className="mb-4 hidden items-center gap-2 rounded-full border border-pink-300/30 bg-pink-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-pink-100">
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               FloorVibes
             </div>
             <div className="mb-5 flex items-end gap-3">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/15 bg-[conic-gradient(from_180deg,#fb5ab8,#38dfff,#a855f7,#fb5ab8)] p-1 shadow-[0_0_34px_rgba(236,72,153,0.22)]">
                 <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0b0614]">
-                  <Disc3 className="h-8 w-8 text-cyan-100" aria-hidden="true" />
+                  <Music2 className="h-8 w-8 text-cyan-100" aria-hidden="true" />
                 </div>
               </div>
               <div className="flex h-12 flex-1 items-end gap-1" aria-hidden="true">
@@ -769,6 +809,68 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
           ) : null}
         </div>
       </section>
+
+      {isTimelineOpen ? (
+        <div className="fixed inset-0 z-20 flex items-end bg-black/70 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-md rounded-lg border border-white/10 bg-[#080310] p-4 shadow-2xl shadow-black/50">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-pink-100">
+                  <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                  {language === "ja" ? "DJタイムライン" : "DJ timeline"}
+                </p>
+                <h2 className="mt-1 text-xl font-black text-white">
+                  {selectedEvent?.name ?? "FloorVibes"}
+                </h2>
+              </div>
+              <button
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/10 hover:text-white"
+                onClick={() => setIsTimelineOpen(false)}
+                type="button"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+                <span className="sr-only">Close</span>
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {sortedTimelineSlots.map((slot) => {
+                const dj = djs.find((item) => item.id === slot.dj_id);
+                const isCurrent = slot.id === currentTimelineSlot?.id;
+                const isNext = slot.id === nextTimelineSlot?.id;
+                return (
+                  <div
+                    className={[
+                      "rounded-lg border p-3",
+                      isCurrent
+                        ? "border-pink-300/30 bg-pink-300/10"
+                        : isNext
+                          ? "border-cyan-300/25 bg-cyan-300/10"
+                          : "border-white/10 bg-white/[0.04]",
+                    ].join(" ")}
+                    key={slot.id}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="truncate text-base font-black text-white">
+                        {dj?.name ?? (language === "ja" ? "未設定DJ" : "Unknown DJ")}
+                      </p>
+                      {isCurrent || isNext ? (
+                        <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-50">
+                          {isCurrent ? (language === "ja" ? "現在" : "Now") : language === "ja" ? "次" : "Next"}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-slate-300">
+                      <Clock3 className="h-4 w-4 text-cyan-100" aria-hidden="true" />
+                      {formatTimelineRange(slot)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {toast ? (
         <div className="fixed bottom-5 left-4 right-4 z-10 mx-auto max-w-sm rounded-lg border border-pink-300/30 bg-[#100719]/95 px-4 py-3 text-center text-sm font-bold text-pink-50 shadow-2xl shadow-pink-950/30">

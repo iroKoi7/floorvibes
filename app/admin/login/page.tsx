@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, CheckCircle2, LockKeyhole, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandLockup } from "@/components/brand-lockup";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -115,9 +116,7 @@ function AdminLoginContent() {
             <LockKeyhole className="h-5 w-5" aria-hidden="true" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-pink-200">
-              FloorVibes Owner Console
-            </p>
+            <BrandLockup size="sm" suffix="Owner Console" />
             <h1 className="mt-1 text-2xl font-black text-white">Owner login</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-400">
               Audience and DJ links stay public. Event management is protected here.

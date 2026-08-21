@@ -3,7 +3,6 @@ import {
   ArrowRight,
   BarChart3,
   CalendarClock,
-  Disc3,
   Headphones,
   Heart,
   ListMusic,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ContactForm } from "@/app/about/contact-form";
+import { BrandLockup } from "@/components/brand-lockup";
 
 const features = [
   {
@@ -65,7 +65,11 @@ const steps = [
   },
   {
     title: "Play",
-    body: "DJはフロアの温度を見ながら選曲し、履歴から参加者の好みや次にディグる曲を振り返れます。",
+    body: "DJはフロアの温度を見ながら、今求められている曲をプレイに反映できます。",
+  },
+  {
+    title: "Review",
+    body: "終了後は履歴から、参加者の好きな音楽や次にディグる曲を振り返れます。",
   },
 ];
 
@@ -107,10 +111,7 @@ export default function AboutPage() {
 
         <nav className="mx-auto flex max-w-6xl items-center justify-between py-3">
           <Link className="flex items-center gap-2 text-lg font-black text-white" href="/about">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-200/20 bg-cyan-200/10">
-              <Disc3 className="h-5 w-5 text-cyan-100" aria-hidden="true" />
-            </span>
-            FloorVibes
+            <BrandLockup />
           </Link>
           <div className="flex items-center gap-2">
             <Link
@@ -184,7 +185,7 @@ export default function AboutPage() {
           <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">
             イベント当日の流れを、シンプルに。
           </h2>
-          <div className="mt-8 grid gap-3 md:grid-cols-4">
+          <div className="mt-8 grid gap-3 md:grid-cols-5">
             {steps.map((step, index) => (
               <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4" key={step.title}>
                 <p className="flex h-8 w-8 items-center justify-center rounded-full border border-pink-300/25 bg-pink-300/10 text-sm font-black text-pink-100">

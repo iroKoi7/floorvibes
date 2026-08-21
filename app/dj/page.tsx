@@ -9,11 +9,11 @@ import {
   Heart,
   Music2,
   PartyPopper,
-  Radio,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AudienceShareCard } from "@/components/audience-share-card";
+import { BrandLockup } from "@/components/brand-lockup";
 import { Card } from "@/components/ui/card";
 import { LanguageToggle } from "@/components/language-toggle";
 import { LocalModeNotice } from "@/components/local-mode-notice";
@@ -280,10 +280,7 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
       <header className="sticky top-0 z-10 -mx-4 border-b border-white/10 bg-[#080310]/90 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-pink-200">
-              <Radio className="h-4 w-4" aria-hidden="true" />
-              {copy.floorVibesLive}
-            </div>
+            <BrandLockup size="sm" suffix="Live" />
             <h1 className="mt-1 truncate text-2xl font-black text-white">{copy.djDashboard}</h1>
           </div>
           <div className="flex items-center gap-2">
