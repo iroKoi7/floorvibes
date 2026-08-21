@@ -6,6 +6,8 @@
   - Let event owners assign DJs to event time ranges.
   - Auto-select the current DJ on Audience and DJ screens based on the current time.
   - Show the current turn clearly in the top-left "Now playing" area.
+  - Show the current DJ time range and the next DJ time range on the Audience screen.
+  - Add a lightweight timeline button/modal on the Audience screen so participants can view the event DJ timeline without leaving the request flow.
   - Keep manual DJ selection available as an override for irregular event operations.
   - For event-specific Audience/DJ links, avoid forcing users to choose an event manually.
   - Test priority for 2026-08-23.
@@ -26,11 +28,17 @@
 - Public service LP
   - Publish a lightweight FloorVibes service page separate from the Owner Console.
   - Explain what the service does, who it is for, and the basic flow.
+  - Split the "Play" and "Review" steps in How it works so playing requests and post-event reflection are separate benefits.
   - Include a simple contact path for event use, collaboration, or questions.
   - Keep product feedback collection as a separate feature, not the LP's main purpose.
   - Store LP contact messages in Supabase for the developer to review.
 
 ## Medium Priority
+
+- Brand consistency
+  - Standardize the FloorVibes logo and service-name treatment across Audience, DJ, Owner Console, login, and LP screens.
+  - Decide one compact lockup for tight mobile headers.
+  - Keep the visual identity consistent while preserving each screen's task-focused layout.
 
 - Request grouping
   - Group similar song requests for the same DJ.
