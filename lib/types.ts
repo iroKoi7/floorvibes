@@ -53,6 +53,24 @@ export type DjUpdate = Partial<Omit<DjInsert, "event_id">> & {
   event_id?: string;
 };
 
+export type DjTimelineSlotRow = {
+  id: string;
+  event_id: string;
+  dj_id: string;
+  created_at: string;
+  starts_at: string;
+  ends_at: string;
+  sort_order: number;
+};
+
+export type DjTimelineSlotInsert = {
+  event_id: string;
+  dj_id: string;
+  starts_at: string;
+  ends_at: string;
+  sort_order?: number;
+};
+
 export type RequestRow = {
   id: string;
   created_at: string;
@@ -123,6 +141,25 @@ export type Database = {
             foreignKeyName: "djs_event_id_fkey";
             columns: ["event_id"];
             referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      dj_timeline_slots: {
+        Row: DjTimelineSlotRow;
+        Insert: DjTimelineSlotInsert;
+        Update: Partial<DjTimelineSlotInsert>;
+        Relationships: [
+          {
+            foreignKeyName: "dj_timeline_slots_event_id_fkey";
+            columns: ["event_id"];
+            referencedRelation: "events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "dj_timeline_slots_dj_id_fkey";
+            columns: ["dj_id"];
+            referencedRelation: "djs";
             referencedColumns: ["id"];
           },
         ];

@@ -2,15 +2,13 @@
 
 ## High Priority
 
-- Request history and event reports
-  - Keep audience users login-free.
-  - Preserve the audience session during the event.
-  - Show the user's own request history for the current event/session.
-  - Update the history when a DJ marks a request as played.
-  - Make fulfilled requests feel clear and rewarding, such as "Your request was played."
-  - Consider adding a lightweight feedback action from a fulfilled request.
-  - Let DJs review requests they already marked as played or dismissed during the event.
-  - Let Admin review all event requests across DJs as a post-event report.
+- DJ timeline and current turn
+  - Let admins assign DJs to event time ranges.
+  - Auto-select the current DJ on Audience and DJ screens based on the current time.
+  - Show the current turn clearly in the top-left "Now playing" area.
+  - Keep manual DJ selection available as an override for irregular event operations.
+  - For event-specific Audience/DJ links, avoid forcing users to choose an event manually.
+  - Test priority for 2026-08-23.
 
 - Production load check
   - Validate the app can handle a real event with 100-200 concurrent audience users plus DJ/admin usage.
@@ -18,22 +16,22 @@
   - Watch Supabase Realtime behavior, request insert/update latency, and Vercel client load.
   - Confirm the DJ dashboard remains usable when many requests arrive in a short window.
 
+- Test-day runbook
+  - Prepare one checklist for the 2026-08-23 test event.
+  - Confirm Supabase migrations are applied before deploy.
+  - Confirm production URLs for Audience, DJ, and Admin.
+  - Confirm QR/share links open the intended event.
+  - Prepare fallback operation if realtime or song search becomes unstable.
+
 ## Medium Priority
 
 - Request grouping
   - Group similar song requests for the same DJ.
   - Start with deterministic normalization and search-selected metadata before adding AI-assisted matching.
-  - MVP: group pending DJ requests by search-selected provider ID, with exact normalized text fallback.
-  - MVP: show event-level Waiting/Played signals on audience song search results.
   - Run grouping in batches instead of on every request.
   - Trigger a grouping job after roughly 10 new pending requests for a DJ/event.
   - Only group unresolved requests, excluding played or dismissed requests.
   - If a grouping job is already running, do not enqueue another job; leave new requests for the next trigger.
-
-- DJ timeline
-  - Let admins assign DJs to event time ranges.
-  - Auto-select the current DJ on Audience and DJ screens based on the current time.
-  - Keep manual DJ selection available as an override for irregular event operations.
 
 - Admin login follow-up
   - Verify Supabase Auth email settings in production.
@@ -49,6 +47,20 @@
   - Track historical requests and feedback received by each DJ.
 
 ## Shipped
+
+- Request history and event reports
+  - Keep audience users login-free.
+  - Preserve the audience session during the event.
+  - Show the user's own request history for the current event/session.
+  - Update the history when a DJ marks a request as played.
+  - Let DJs review requests they already marked as played or dismissed during the event.
+  - Let Admin review all event requests across DJs as a post-event report.
+  - Align request status UI across Audience, DJ, and Admin.
+
+- Request grouping MVP
+  - Group pending DJ requests by search-selected provider ID, with exact normalized text fallback.
+  - Show event-level Waiting/Played signals on audience song search results.
+  - Let DJs mark grouped matching requests as played or dismissed together.
 
 - Song search and autocomplete
   - Let audience members search songs inside FloorVibes instead of opening another music app.

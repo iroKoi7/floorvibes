@@ -24,6 +24,7 @@ import {
   getActiveEvents,
   getDjsForEvent,
   getEventBySlug,
+  getTimelineSlotsForEvent,
 } from "@/lib/event-store";
 import { isLanguage, LANGUAGE_STORAGE_KEY, text, type Language } from "@/lib/i18n";
 import {
@@ -35,7 +36,8 @@ import {
   updateRequestStatuses,
 } from "@/lib/request-store";
 import { getDjLikeCounts } from "@/lib/feedback-store";
-import type { DjRow, EventRow, RequestRow, RequestStatus } from "@/lib/types";
+import { getCurrentTimelineSlot } from "@/lib/dj-timeline";
+import type { DjRow, DjTimelineSlotRow, EventRow, RequestRow, RequestStatus } from "@/lib/types";
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -93,8 +95,10 @@ function groupRequestsBySong(requests: RequestRow[]) {
 export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [djs, setDjs] = useState<DjRow[]>([]);
+  const [timelineSlots, setTimelineSlots] = useState<DjTimelineSlotRow[]>([]);
   const [eventId, setEventId] = useState("");
   const [djId, setDjId] = useState("");
+  const [hasManualDjOverride, setHasManualDjOverride] = useState(false);
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [answeredRequests, setAnsweredRequests] = useState<RequestRow[]>([]);
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
@@ -107,10 +111,12 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
   const copy = text[language];
   const selectedEvent = events.find((event) => event.id === eventId) ?? null;
   const selectedDj = djs.find((dj) => dj.id === djId) ?? null;
+  const currentTimelineSlot = getCurrentTimelineSlot(timelineSlots, currentTime);
+  const currentTurnDj = djs.find((dj) => dj.id === currentTimelineSlot?.dj_id) ?? null;
   const isEventEnded = Boolean(
     selectedEvent?.ends_at && new Date(selectedEvent.ends_at).getTime() <= currentTime,
   );
-  const djName = selectedDj?.name ?? copy.loadingRequests;
+  const djName = currentTurnDj?.name ?? selectedDj?.name ?? copy.loadingRequests;
 
   useEffect(() => {
     const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -169,6 +175,22 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
 
     void loadDjs();
   }, [eventId]);
+
+  useEffect(() => {
+    if (!eventId) return;
+
+    async function loadTimeline() {
+      const { data } = await getTimelineSlotsForEvent(eventId);
+      setTimelineSlots(data);
+    }
+
+    void loadTimeline();
+  }, [eventId]);
+
+  useEffect(() => {
+    if (!currentTurnDj || hasManualDjOverride) return;
+    setDjId(currentTurnDj.id);
+  }, [currentTurnDj, hasManualDjOverride]);
 
   useEffect(() => {
     if (!eventId || djs.length === 0) return;
@@ -270,7 +292,10 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
               <Select
                 aria-label={copy.selectActiveDj}
                 value={djId}
-                onChange={(event) => setDjId(event.target.value)}
+                onChange={(event) => {
+                  setHasManualDjOverride(true);
+                  setDjId(event.target.value);
+                }}
               >
                 {djs.map((dj) => (
                   <option key={dj.id} value={dj.id}>
@@ -288,7 +313,11 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
           <div>
             <p className="flex items-center gap-2 text-sm font-bold text-slate-400">
               <Headphones className="h-4 w-4 text-cyan-200" aria-hidden="true" />
-              {copy.activeRequestsFor}
+              {currentTurnDj
+                ? language === "ja"
+                  ? "現在のターン"
+                  : "Current turn"
+                : copy.activeRequestsFor}
             </p>
             <h2 className="text-3xl font-black text-white">{djName}</h2>
           </div>

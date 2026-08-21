@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, Plus, Save, Settings2, Trash2 } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, Plus, Save, Settings2, Trash2 } from "lucide-react";
 import { AdminSignOutButton } from "@/app/admin/_components/admin-sign-out-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,6 +15,8 @@ import {
   deleteDj,
   getDjsForEvent,
   getEventById,
+  getTimelineSlotsForEvent,
+  replaceTimelineSlotsForEvent,
   slugify,
   updateDj,
   updateEvent,
@@ -30,6 +32,13 @@ type DraftDj = DjRow & {
   isDraft?: boolean;
 };
 
+type DraftTimelineSlot = {
+  id: string;
+  djId: string;
+  startsAt: string;
+  endsAt: string;
+};
+
 type EventEditorProps = {
   eventId?: string;
   mode: "create" | "edit";
@@ -37,6 +46,7 @@ type EventEditorProps = {
 
 const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const DRAFT_DJ_PREFIX = "draft-dj-";
+const DRAFT_TIMELINE_PREFIX = "draft-timeline-";
 
 function toDateTimeLocal(value: string | null) {
   if (!value) return "";
@@ -91,6 +101,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
   const [likeMode, setLikeMode] = useState<"single" | "multiple">("multiple");
   const [djs, setDjs] = useState<DraftDj[]>([]);
   const [deletedDjIds, setDeletedDjIds] = useState<string[]>([]);
+  const [timelineSlots, setTimelineSlots] = useState<DraftTimelineSlot[]>([]);
   const [newDjName, setNewDjName] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isLoading, setIsLoading] = useState(mode === "edit");
@@ -103,11 +114,21 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
 
     async function loadEvent() {
       setIsLoading(true);
-      const [{ data: event, errorMessage: eventError }, { data: eventDjs, errorMessage: djsError }] =
-        await Promise.all([getEventById(currentEventId), getDjsForEvent(currentEventId, true)]);
+      const [
+        { data: event, errorMessage: eventError },
+        { data: eventDjs, errorMessage: djsError },
+        { data: eventTimeline, errorMessage: timelineError },
+      ] = await Promise.all([
+        getEventById(currentEventId),
+        getDjsForEvent(currentEventId, true),
+        getTimelineSlotsForEvent(currentEventId),
+      ]);
 
-      if (eventError || djsError) {
-        setFeedback({ type: "error", message: eventError || djsError || "Failed to load event." });
+      if (eventError || djsError || timelineError) {
+        setFeedback({
+          type: "error",
+          message: eventError || djsError || timelineError || "Failed to load event.",
+        });
         setIsLoading(false);
         return;
       }
@@ -127,6 +148,14 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
       setEndCtaUrl(event.end_cta_url ?? "");
       setLikeMode(event.like_mode ?? "multiple");
       setDjs(eventDjs);
+      setTimelineSlots(
+        eventTimeline.map((slot) => ({
+          id: slot.id,
+          djId: slot.dj_id,
+          startsAt: toDateTimeLocal(slot.starts_at),
+          endsAt: toDateTimeLocal(slot.ends_at),
+        })),
+      );
       setDeletedDjIds([]);
       setIsLoading(false);
     }
@@ -161,6 +190,17 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
     if (!endCtaLabel.trim() && endCtaUrl.trim()) return "CTA label is required when CTA URL is set.";
     if (visibleDjs.length === 0) return "Add at least one DJ before saving.";
     if (visibleDjs.some((dj) => !dj.name.trim())) return "DJ name is required.";
+    if (
+      timelineSlots.some(
+        (slot) =>
+          !visibleDjs.some((dj) => dj.id === slot.djId) ||
+          !slot.startsAt ||
+          !slot.endsAt ||
+          new Date(slot.endsAt) <= new Date(slot.startsAt),
+      )
+    ) {
+      return "Timeline slots need a DJ and a valid start/end time.";
+    }
 
     const duplicateDj = visibleDjs.find((dj, index) =>
       visibleDjs.some(
@@ -205,7 +245,36 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
       setDeletedDjIds((current) => (current.includes(dj.id) ? current : [...current, dj.id]));
     }
 
+    setTimelineSlots((current) => current.filter((slot) => slot.djId !== dj.id));
     setFeedback({ type: "success", message: `${dj.name} removed from draft.` });
+  }
+
+  function addTimelineSlot() {
+    const defaultDj = visibleDjs[0];
+    if (!defaultDj) {
+      setFeedback({ type: "error", message: "Add a DJ before adding timeline slots." });
+      return;
+    }
+
+    setTimelineSlots((current) => [
+      ...current,
+      {
+        id: `${DRAFT_TIMELINE_PREFIX}${Date.now()}`,
+        djId: defaultDj.id,
+        startsAt,
+        endsAt,
+      },
+    ]);
+  }
+
+  function updateTimelineSlot(id: string, updates: Partial<DraftTimelineSlot>) {
+    setTimelineSlots((current) =>
+      current.map((slot) => (slot.id === id ? { ...slot, ...updates } : slot)),
+    );
+  }
+
+  function removeTimelineSlot(id: string) {
+    setTimelineSlots((current) => current.filter((slot) => slot.id !== id));
   }
 
   async function saveEvent() {
@@ -288,6 +357,8 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
       }
     }
 
+    const savedDjIdByDraftId = new Map<string, string>();
+
     for (const [index, dj] of visibleDjs.entries()) {
       if (dj.isDraft) {
         const { errorMessage } = await createDj({
@@ -302,6 +373,12 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
           setFeedback({ type: "error", message: errorMessage });
           return;
         }
+
+        const { data: refreshedDjs } = await getDjsForEvent(savedEvent.id, true);
+        const createdDj = refreshedDjs.find(
+          (row) => row.name.trim().toLowerCase() === dj.name.trim().toLowerCase(),
+        );
+        if (createdDj) savedDjIdByDraftId.set(dj.id, createdDj.id);
       } else {
         const { errorMessage } = await updateDj(dj.id, {
           name: dj.name.trim(),
@@ -314,7 +391,28 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
           setFeedback({ type: "error", message: errorMessage });
           return;
         }
+        savedDjIdByDraftId.set(dj.id, dj.id);
       }
+    }
+
+    const timelinePayload = timelineSlots
+      .filter((slot) => visibleDjs.some((dj) => dj.id === slot.djId))
+      .map((slot, index) => ({
+        event_id: savedEvent.id,
+        dj_id: savedDjIdByDraftId.get(slot.djId) ?? slot.djId,
+        starts_at: fromDateTimeLocal(slot.startsAt) ?? "",
+        ends_at: fromDateTimeLocal(slot.endsAt) ?? "",
+        sort_order: index,
+      }));
+
+    const { errorMessage: timelineError } = await replaceTimelineSlotsForEvent(
+      savedEvent.id,
+      timelinePayload,
+    );
+    if (timelineError) {
+      setIsSaving(false);
+      setFeedback({ type: "error", message: timelineError });
+      return;
     }
 
     setFeedback({ type: "success", message: "Event saved." });
@@ -548,6 +646,96 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
                     <Trash2 className="h-4 w-4 text-pink-200" aria-hidden="true" />
                     Remove
                   </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-black text-white">
+                  <CalendarClock className="h-5 w-5 text-cyan-100" aria-hidden="true" />
+                  DJ timeline
+                </h2>
+                <p className="mt-1 text-sm font-bold text-slate-400">
+                  Set who is on turn. Audience and DJ screens will follow the current time.
+                </p>
+              </div>
+              <Button type="button" variant="ghost" onClick={addTimelineSlot}>
+                <Plus className="h-5 w-5" aria-hidden="true" />
+                Add slot
+              </Button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {timelineSlots.length === 0 ? (
+                <p className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm font-bold text-slate-300">
+                  No timeline yet. Without a timeline, users can choose a DJ manually.
+                </p>
+              ) : null}
+
+              {timelineSlots.map((slot, index) => (
+                <div
+                  className="grid gap-2 rounded-lg border border-white/10 bg-[#12091f]/70 p-3 sm:grid-cols-[1fr_190px_190px_auto]"
+                  key={slot.id}
+                >
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                      DJ
+                    </label>
+                    <select
+                      aria-label={`Timeline slot ${index + 1} DJ`}
+                      className="mt-2 min-h-11 w-full rounded-lg border border-white/12 bg-[#12091f]/80 px-3 py-2 text-sm font-bold text-white outline-none transition focus:border-cyan-200/70 focus:ring-4 focus:ring-cyan-200/10"
+                      value={slot.djId}
+                      onChange={(event) => updateTimelineSlot(slot.id, { djId: event.target.value })}
+                    >
+                      {visibleDjs.map((dj) => (
+                        <option key={dj.id} value={dj.id}>
+                          {dj.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                      Starts
+                    </label>
+                    <Input
+                      aria-label={`Timeline slot ${index + 1} starts`}
+                      className="mt-2"
+                      type="datetime-local"
+                      value={slot.startsAt}
+                      onChange={(event) =>
+                        updateTimelineSlot(slot.id, { startsAt: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                      Ends
+                    </label>
+                    <Input
+                      aria-label={`Timeline slot ${index + 1} ends`}
+                      className="mt-2"
+                      type="datetime-local"
+                      value={slot.endsAt}
+                      onChange={(event) =>
+                        updateTimelineSlot(slot.id, { endsAt: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      className="min-h-10 px-3 py-2 text-xs"
+                      type="button"
+                      variant="ghost"
+                      onClick={() => removeTimelineSlot(slot.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-pink-200" aria-hidden="true" />
+                      Remove
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

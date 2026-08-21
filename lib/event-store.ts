@@ -1,8 +1,18 @@
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import type { DjInsert, DjRow, DjUpdate, EventInsert, EventRow, EventUpdate } from "@/lib/types";
+import type {
+  DjInsert,
+  DjRow,
+  DjTimelineSlotInsert,
+  DjTimelineSlotRow,
+  DjUpdate,
+  EventInsert,
+  EventRow,
+  EventUpdate,
+} from "@/lib/types";
 
 const MOCK_EVENTS_KEY = "floorvibes:mock-events";
 const MOCK_DJS_KEY = "floorvibes:mock-djs";
+const MOCK_TIMELINE_KEY = "floorvibes:mock-dj-timeline-slots";
 
 export const DEFAULT_EVENT_SLUG = "floorvibes";
 export const DEFAULT_END_MESSAGE =
@@ -82,6 +92,10 @@ function readMockEvents() {
 
 function readMockDjs() {
   return readMockRows(MOCK_DJS_KEY, defaultDjs());
+}
+
+function readMockTimelineSlots() {
+  return readMockRows<DjTimelineSlotRow>(MOCK_TIMELINE_KEY, []);
 }
 
 export async function getActiveEvents() {
@@ -274,6 +288,59 @@ export async function deleteDj(id: string) {
     MOCK_DJS_KEY,
     readMockDjs().filter((row) => row.id !== id),
   );
+  return { errorMessage: null };
+}
+
+export async function getTimelineSlotsForEvent(eventId: string) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("dj_timeline_slots")
+      .select("*")
+      .eq("event_id", eventId)
+      .order("starts_at", { ascending: true })
+      .order("sort_order", { ascending: true });
+
+    return { data: data ?? [], errorMessage: error?.message ?? null };
+  }
+
+  return {
+    data: readMockTimelineSlots()
+      .filter((slot) => slot.event_id === eventId)
+      .sort(
+        (a, b) =>
+          new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime() ||
+          a.sort_order - b.sort_order,
+      ),
+    errorMessage: null,
+  };
+}
+
+export async function replaceTimelineSlotsForEvent(
+  eventId: string,
+  slots: DjTimelineSlotInsert[],
+) {
+  if (supabase) {
+    const deleteResult = await supabase.from("dj_timeline_slots").delete().eq("event_id", eventId);
+    if (deleteResult.error) return { errorMessage: deleteResult.error.message };
+
+    if (slots.length === 0) return { errorMessage: null };
+
+    const { error } = await supabase.from("dj_timeline_slots").insert(slots);
+    return { errorMessage: error?.message ?? null };
+  }
+
+  const otherSlots = readMockTimelineSlots().filter((slot) => slot.event_id !== eventId);
+  const nextSlots: DjTimelineSlotRow[] = slots.map((slot, index) => ({
+    id: createMockId(),
+    created_at: new Date().toISOString(),
+    event_id: eventId,
+    dj_id: slot.dj_id,
+    starts_at: slot.starts_at,
+    ends_at: slot.ends_at,
+    sort_order: slot.sort_order ?? index,
+  }));
+
+  writeMockRows(MOCK_TIMELINE_KEY, [...otherSlots, ...nextSlots]);
   return { errorMessage: null };
 }
 

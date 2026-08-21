@@ -24,6 +24,7 @@ import {
   getActiveEvents,
   getDjsForEvent,
   getEventBySlug,
+  getTimelineSlotsForEvent,
 } from "@/lib/event-store";
 import { createEventLike, getLikedDjIds } from "@/lib/feedback-store";
 import { isLanguage, LANGUAGE_STORAGE_KEY, text, type Language } from "@/lib/i18n";
@@ -36,7 +37,8 @@ import {
   subscribeToRequestChanges,
 } from "@/lib/request-store";
 import { formatSongRequestTitle, type SongSearchResult } from "@/lib/song-search";
-import type { DjRow, EventRow, RequestRow } from "@/lib/types";
+import { getCurrentTimelineSlot } from "@/lib/dj-timeline";
+import type { DjRow, DjTimelineSlotRow, EventRow, RequestRow } from "@/lib/types";
 
 const AUDIENCE_EVENT_STORAGE_KEY = "floorvibes:audience-event";
 const AUDIENCE_DJ_STORAGE_KEY = "floorvibes:audience-dj-id";
@@ -70,9 +72,11 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const [audienceSessionId, setAudienceSessionId] = useState("");
   const [events, setEvents] = useState<EventRow[]>([]);
   const [djs, setDjs] = useState<DjRow[]>([]);
+  const [timelineSlots, setTimelineSlots] = useState<DjTimelineSlotRow[]>([]);
   const [likedDjIds, setLikedDjIds] = useState<string[]>([]);
   const [eventId, setEventId] = useState("");
   const [djId, setDjId] = useState("");
+  const [hasManualDjOverride, setHasManualDjOverride] = useState(false);
   const [eventSlug, setEventSlug] = useState(DEFAULT_EVENT_SLUG);
   const [language, setLanguage] = useState<Language>("en");
   const [currentTime, setCurrentTime] = useState(() => Date.now());
@@ -89,10 +93,12 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   const isCoolingDown = cooldownRemaining > 0;
   const selectedEvent = events.find((event) => event.id === eventId) ?? null;
   const selectedDj = djs.find((dj) => dj.id === djId) ?? null;
+  const currentTimelineSlot = getCurrentTimelineSlot(timelineSlots, currentTime);
+  const currentTurnDj = djs.find((dj) => dj.id === currentTimelineSlot?.dj_id) ?? null;
   const isEventEnded = Boolean(
     selectedEvent?.ends_at && new Date(selectedEvent.ends_at).getTime() <= currentTime,
   );
-  const djName = selectedDj?.name ?? copy.loadingRequests;
+  const djName = currentTurnDj?.name ?? selectedDj?.name ?? copy.loadingRequests;
 
   function createAudienceSession(name = "") {
     return {
@@ -246,6 +252,23 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   }, [eventId]);
 
   useEffect(() => {
+    if (!eventId) return;
+
+    async function loadTimeline() {
+      const { data } = await getTimelineSlotsForEvent(eventId);
+      setTimelineSlots(data);
+    }
+
+    void loadTimeline();
+  }, [eventId]);
+
+  useEffect(() => {
+    if (!currentTurnDj || hasManualDjOverride) return;
+    setDjId(currentTurnDj.id);
+    window.localStorage.setItem(AUDIENCE_DJ_STORAGE_KEY, currentTurnDj.id);
+  }, [currentTurnDj, hasManualDjOverride]);
+
+  useEffect(() => {
     if (!eventId || djs.length === 0 || !audienceSessionId) return;
 
     async function loadLikes() {
@@ -314,6 +337,7 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   }, []);
 
   function handleDjChange(nextDjId: string) {
+    setHasManualDjOverride(true);
     setDjId(nextDjId);
     window.localStorage.setItem(AUDIENCE_DJ_STORAGE_KEY, nextDjId);
   }
