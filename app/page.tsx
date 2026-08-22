@@ -64,7 +64,76 @@ type AudienceSession = {
 
 type AudiencePageProps = {
   fixedEventSlug?: string;
+  demoMode?: boolean;
 };
+
+const DEMO_EVENT_ID = "demo-event-floorvibes";
+const DEMO_DJS: DjRow[] = [
+  {
+    id: "demo-dj-koike",
+    event_id: DEMO_EVENT_ID,
+    created_at: new Date(0).toISOString(),
+    name: "DJ Koike",
+    is_active: true,
+    sort_order: 0,
+  },
+  {
+    id: "demo-dj-taiyo",
+    event_id: DEMO_EVENT_ID,
+    created_at: new Date(0).toISOString(),
+    name: "DJ Taiyo",
+    is_active: true,
+    sort_order: 1,
+  },
+  {
+    id: "demo-dj-guest",
+    event_id: DEMO_EVENT_ID,
+    created_at: new Date(0).toISOString(),
+    name: "Guest DJ",
+    is_active: true,
+    sort_order: 2,
+  },
+];
+
+function createDemoEvent(now = Date.now()): EventRow {
+  return {
+    id: DEMO_EVENT_ID,
+    created_at: new Date(now).toISOString(),
+    owner_id: null,
+    name: "FloorVibes Demo Night",
+    slug: "demo",
+    starts_at: new Date(now - 60 * 60 * 1000).toISOString(),
+    ends_at: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
+    end_message: "Thanks for joining FloorVibes.",
+    end_cta_label: null,
+    end_cta_url: null,
+    like_mode: "multiple",
+    is_active: true,
+  };
+}
+
+function createDemoTimelineSlots(now = Date.now()): DjTimelineSlotRow[] {
+  return [
+    {
+      id: "demo-timeline-current",
+      event_id: DEMO_EVENT_ID,
+      dj_id: DEMO_DJS[0].id,
+      created_at: new Date(now).toISOString(),
+      starts_at: new Date(now - 30 * 60 * 1000).toISOString(),
+      ends_at: new Date(now + 30 * 60 * 1000).toISOString(),
+      sort_order: 0,
+    },
+    {
+      id: "demo-timeline-next",
+      event_id: DEMO_EVENT_ID,
+      dj_id: DEMO_DJS[1].id,
+      created_at: new Date(now).toISOString(),
+      starts_at: new Date(now + 30 * 60 * 1000).toISOString(),
+      ends_at: new Date(now + 90 * 60 * 1000).toISOString(),
+      sort_order: 1,
+    },
+  ];
+}
 
 function formatRequestTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -77,7 +146,7 @@ function formatTimelineRange(slot: DjTimelineSlotRow) {
   return `${formatRequestTime(slot.starts_at)} - ${formatRequestTime(slot.ends_at)}`;
 }
 
-export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
+export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageProps = {}) {
   const [songTitle, setSongTitle] = useState("");
   const [audienceName, setAudienceName] = useState("");
   const [audienceSessionId, setAudienceSessionId] = useState("");
@@ -216,6 +285,14 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
 
   useEffect(() => {
     async function loadEvents() {
+      if (demoMode) {
+        const demoEvent = createDemoEvent();
+        setEvents([demoEvent]);
+        setEventId(demoEvent.id);
+        setEventSlug(demoEvent.slug);
+        return;
+      }
+
       const params = new URLSearchParams(window.location.search);
       const urlEventSlug = fixedEventSlug ?? params.get("event");
       const savedEventSlug = window.localStorage.getItem(AUDIENCE_EVENT_STORAGE_KEY);
@@ -244,12 +321,18 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     }
 
     void loadEvents();
-  }, [fixedEventSlug]);
+  }, [demoMode, fixedEventSlug]);
 
   useEffect(() => {
     if (!eventId) return;
 
     async function loadDjs() {
+      if (demoMode) {
+        setDjs(DEMO_DJS);
+        setDjId(DEMO_DJS[0].id);
+        return;
+      }
+
       const params = new URLSearchParams(window.location.search);
       const urlDjId = params.get("dj");
       const savedDjId = window.localStorage.getItem(AUDIENCE_DJ_STORAGE_KEY);
@@ -264,18 +347,23 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     }
 
     void loadDjs();
-  }, [eventId]);
+  }, [demoMode, eventId]);
 
   useEffect(() => {
     if (!eventId) return;
 
     async function loadTimeline() {
+      if (demoMode) {
+        setTimelineSlots(createDemoTimelineSlots());
+        return;
+      }
+
       const { data } = await getTimelineSlotsForEvent(eventId);
       setTimelineSlots(data);
     }
 
     void loadTimeline();
-  }, [eventId]);
+  }, [demoMode, eventId]);
 
   useEffect(() => {
     if (!currentTurnDj || hasManualDjOverride) return;
@@ -284,6 +372,7 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   }, [currentTurnDj, hasManualDjOverride]);
 
   useEffect(() => {
+    if (demoMode) return;
     if (!eventId || djs.length === 0 || !audienceSessionId) return;
 
     async function loadLikes() {
@@ -292,9 +381,10 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     }
 
     void loadLikes();
-  }, [audienceSessionId, djs, eventId]);
+  }, [audienceSessionId, demoMode, djs, eventId]);
 
   useEffect(() => {
+    if (demoMode) return;
     if (!eventId || !audienceSessionId) return;
 
     async function loadAudienceRequests() {
@@ -312,10 +402,10 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
         void loadAudienceRequests();
       },
     );
-  }, [audienceSessionId, eventId]);
+  }, [audienceSessionId, demoMode, eventId]);
 
   useEffect(() => {
-    if (!eventId || songResults.length === 0) {
+    if (demoMode || !eventId || songResults.length === 0) {
       setSongSignals({});
       return;
     }
@@ -329,7 +419,7 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     }
 
     void loadSongSignals();
-  }, [eventId, songResults]);
+  }, [demoMode, eventId, songResults]);
 
   useEffect(() => {
     function syncCooldown() {
@@ -394,6 +484,12 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
   }
 
   async function sendLike(dj: DjRow) {
+    if (demoMode) {
+      setLikedDjIds((current) => (current.includes(dj.id) ? current : [...current, dj.id]));
+      setToast(language === "ja" ? `${dj.name} にLikeを送りました!` : `Sent love to ${dj.name}!`);
+      return;
+    }
+
     const alreadySentSingleLike = selectedEvent?.like_mode === "single" && likedDjIds.length > 0;
     if (!selectedEvent || !audienceSessionId || likedDjIds.includes(dj.id) || alreadySentSingleLike) {
       return;
@@ -436,6 +532,38 @@ export function AudiencePage({ fixedEventSlug }: AudiencePageProps = {}) {
     setIsSending(true);
     const selectedSongStillMatches =
       selectedSong && trimmedSong === formatSongRequestTitle(selectedSong);
+    if (demoMode) {
+      const demoRequest: RequestRow = {
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `demo-request-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        event_id: selectedEvent?.id ?? DEMO_EVENT_ID,
+        dj_id: selectedDj.id,
+        dj_name: selectedDj.name,
+        audience_session_id: audienceSessionId || null,
+        requested_by: trimmedName,
+        song_title: selectedSongStillMatches ? selectedSong.title : trimmedSong,
+        song_artist: selectedSongStillMatches ? selectedSong.artist : null,
+        song_artwork_url: selectedSongStillMatches ? selectedSong.artworkUrl : null,
+        song_provider: selectedSongStillMatches ? selectedSong.provider : null,
+        song_provider_id: selectedSongStillMatches ? selectedSong.providerId : null,
+        song_url: selectedSongStillMatches ? selectedSong.url : null,
+        status: "pending",
+      };
+      setAudienceRequests((current) => [demoRequest, ...current]);
+      setIsSending(false);
+      setSongTitle("");
+      setSelectedSong(null);
+      setSongResults([]);
+      persistAudienceSession(trimmedName);
+      window.localStorage.setItem(REQUEST_COOLDOWN_STORAGE_KEY, String(Date.now()));
+      setCooldownRemaining(Math.ceil(REQUEST_COOLDOWN_MS / 1000));
+      setToast(copy.sentToDj);
+      return;
+    }
+
     const { errorMessage } = await createRequest({
       event_id: selectedEvent?.id ?? null,
       dj_id: selectedDj.id,

@@ -151,7 +151,7 @@ export default function AboutPage() {
             </Link>
             <Link
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-cyan-200/20 bg-cyan-200/10 px-5 py-3 text-sm font-black text-cyan-50 transition hover:bg-cyan-200/16"
-              href="/e/floorvibes"
+              href="/demo"
             >
               デモを見る
             </Link>
