@@ -111,6 +111,7 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
   const copy = text[language];
   const selectedEvent = events.find((event) => event.id === eventId) ?? null;
   const selectedDj = djs.find((dj) => dj.id === djId) ?? null;
+  const canSelectedDjAcceptRequests = selectedDj?.accepts_requests ?? false;
   const currentTimelineSlot = getCurrentTimelineSlot(timelineSlots, currentTime);
   const currentTurnDj = djs.find((dj) => dj.id === currentTimelineSlot?.dj_id) ?? null;
   const isEventEnded = Boolean(
@@ -282,6 +283,11 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
           <div className="min-w-0">
             <BrandLockup size="sm" suffix="Live" />
             <h1 className="mt-1 truncate text-2xl font-black text-white">{copy.djDashboard}</h1>
+            {selectedEvent ? (
+              <p className="mt-1 truncate text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                {selectedEvent.name}
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <LanguageToggle language={language} onChange={handleLanguageChange} />
@@ -297,6 +303,7 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
                 {djs.map((dj) => (
                   <option key={dj.id} value={dj.id}>
                     {dj.name}
+                    {dj.accepts_requests ? "" : ` (${copy.requestPaused})`}
                   </option>
                 ))}
               </Select>
@@ -317,6 +324,18 @@ export function DjPage({ fixedEventSlug }: DjPageProps = {}) {
                 : copy.activeRequestsFor}
             </p>
             <h2 className="text-3xl font-black text-white">{djName}</h2>
+            {selectedDj ? (
+              <p
+                className={[
+                  "mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.12em]",
+                  canSelectedDjAcceptRequests
+                    ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
+                    : "border-pink-300/25 bg-pink-300/10 text-pink-100",
+                ].join(" ")}
+              >
+                {canSelectedDjAcceptRequests ? copy.acceptingRequests : copy.requestPaused}
+              </p>
+            ) : null}
           </div>
           <div className="rounded-lg border border-pink-300/20 bg-pink-300/10 px-4 py-2 text-center shadow-[0_0_26px_rgba(236,72,153,0.14)]">
             <p className="text-2xl font-black text-pink-50">{activeCount}</p>

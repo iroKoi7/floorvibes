@@ -272,7 +272,7 @@ export default function AdminPage() {
               </summary>
 
               <div className="space-y-4 border-t border-white/10 bg-[#0b0614]/60 px-4 py-4">
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-4">
                   <div className="rounded-lg border border-white/10 bg-white/5 p-3">
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
                       Status
@@ -299,7 +299,35 @@ export default function AdminPage() {
                       {totalLikes}
                     </p>
                   </div>
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                      Request DJs
+                    </p>
+                    <p className="mt-2 text-sm font-black text-white">
+                      {details
+                        ? `${details.djs.filter((dj) => dj.accepts_requests).length}/${details.djs.length} accepting`
+                        : "Loading..."}
+                    </p>
+                  </div>
                 </div>
+
+                {details && details.djs.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {details.djs.map((dj) => (
+                      <span
+                        className={[
+                          "inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-black",
+                          dj.accepts_requests
+                            ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
+                            : "border-slate-500/25 bg-white/[0.035] text-slate-400",
+                        ].join(" ")}
+                        key={dj.id}
+                      >
+                        {dj.name}: {dj.accepts_requests ? "Accepting" : "Paused"}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
 
                 {status === "ended" ? (
                   <div className="rounded-lg border border-pink-300/15 bg-pink-300/[0.08] p-3">

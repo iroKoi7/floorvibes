@@ -50,6 +50,7 @@ import type { DjRow, DjTimelineSlotRow, EventRow, RequestRow } from "@/lib/types
 const AUDIENCE_EVENT_STORAGE_KEY = "floorvibes:audience-event";
 const AUDIENCE_DJ_STORAGE_KEY = "floorvibes:audience-dj-id";
 const AUDIENCE_SESSION_STORAGE_KEY = "floorvibes:audience-session";
+const AUDIENCE_GUIDE_STORAGE_KEY = "floorvibes:audience-guide-session";
 const REQUEST_COOLDOWN_STORAGE_KEY = "floorvibes:last-request-at";
 const REQUEST_COOLDOWN_MS = 60 * 1000;
 const AUDIENCE_SESSION_MS = 3 * 60 * 60 * 1000;
@@ -74,6 +75,7 @@ const DEMO_DJS: DjRow[] = [
     event_id: DEMO_EVENT_ID,
     created_at: new Date(0).toISOString(),
     name: "DJ Koike",
+    accepts_requests: true,
     is_active: true,
     sort_order: 0,
   },
@@ -82,6 +84,7 @@ const DEMO_DJS: DjRow[] = [
     event_id: DEMO_EVENT_ID,
     created_at: new Date(0).toISOString(),
     name: "DJ Taiyo",
+    accepts_requests: true,
     is_active: true,
     sort_order: 1,
   },
@@ -90,6 +93,7 @@ const DEMO_DJS: DjRow[] = [
     event_id: DEMO_EVENT_ID,
     created_at: new Date(0).toISOString(),
     name: "Guest DJ",
+    accepts_requests: true,
     is_active: true,
     sort_order: 2,
   },
@@ -170,10 +174,12 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const copy = text[language];
   const isCoolingDown = cooldownRemaining > 0;
   const selectedEvent = events.find((event) => event.id === eventId) ?? null;
   const selectedDj = djs.find((dj) => dj.id === djId) ?? null;
+  const canSelectedDjAcceptRequests = selectedDj?.accepts_requests ?? false;
   const currentTimelineSlot = getCurrentTimelineSlot(timelineSlots, currentTime);
   const nextTimelineSlot = getNextTimelineSlot(timelineSlots, currentTime);
   const sortedTimelineSlots = sortTimelineSlots(timelineSlots);
@@ -206,6 +212,7 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
       const nextSession = createAudienceSession();
       setAudienceSessionId(nextSession.id);
       window.localStorage.setItem(AUDIENCE_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+      setIsGuideOpen(true);
       return;
     }
 
@@ -214,15 +221,20 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
       if (session.expiresAt > Date.now() && session.id) {
         setAudienceName(session.name);
         setAudienceSessionId(session.id);
+        if (window.localStorage.getItem(AUDIENCE_GUIDE_STORAGE_KEY) !== session.id) {
+          setIsGuideOpen(true);
+        }
       } else {
         const nextSession = createAudienceSession();
         setAudienceSessionId(nextSession.id);
         window.localStorage.setItem(AUDIENCE_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+        setIsGuideOpen(true);
       }
     } catch {
       const nextSession = createAudienceSession();
       setAudienceSessionId(nextSession.id);
       window.localStorage.setItem(AUDIENCE_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+      setIsGuideOpen(true);
     }
   }, []);
 
@@ -337,7 +349,12 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
       const urlDjId = params.get("dj");
       const savedDjId = window.localStorage.getItem(AUDIENCE_DJ_STORAGE_KEY);
       const { data } = await getDjsForEvent(eventId);
-      const nextDj = data.find((dj) => dj.id === urlDjId) ?? data.find((dj) => dj.id === savedDjId) ?? data[0] ?? null;
+      const nextDj =
+        data.find((dj) => dj.id === urlDjId) ??
+        data.find((dj) => dj.id === savedDjId && dj.accepts_requests) ??
+        data.find((dj) => dj.accepts_requests) ??
+        data[0] ??
+        null;
 
       setDjs(data);
       if (nextDj) {
@@ -452,6 +469,13 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
   }
 
+  function closeGuide() {
+    if (audienceSessionId) {
+      window.localStorage.setItem(AUDIENCE_GUIDE_STORAGE_KEY, audienceSessionId);
+    }
+    setIsGuideOpen(false);
+  }
+
   function handleSongInput(nextValue: string) {
     setSongTitle(nextValue);
     if (!selectedSong || nextValue !== formatSongRequestTitle(selectedSong)) {
@@ -523,6 +547,11 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
     const trimmedSong = songTitle.trim();
     const trimmedName = audienceName.trim();
     if (!trimmedSong || !trimmedName || !selectedDj) return;
+
+    if (!canSelectedDjAcceptRequests) {
+      setToast(copy.requestPausedDescription);
+      return;
+    }
 
     if (isCoolingDown) {
       setToast(`${copy.cooldownMessage} ${cooldownRemaining} ${copy.cooldownSeconds}`);
@@ -602,10 +631,27 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
             {copy.nowPlaying}
           </p>
           <h1 className="mt-1 truncate text-2xl font-black text-white">{djName}</h1>
+          {selectedEvent ? (
+            <p className="mt-1 truncate text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+              {selectedEvent.name}
+            </p>
+          ) : null}
           {currentTimelineSlot ? (
             <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-cyan-100">
               <Clock3 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {formatTimelineRange(currentTimelineSlot)}
+            </p>
+          ) : null}
+          {currentTurnDj ? (
+            <p
+              className={[
+                "mt-1 w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em]",
+                currentTurnDj.accepts_requests
+                  ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
+                  : "border-pink-300/25 bg-pink-300/10 text-pink-100",
+              ].join(" ")}
+            >
+              {currentTurnDj.accepts_requests ? copy.acceptingRequests : copy.requestPaused}
             </p>
           ) : null}
           {nextTimelineSlot && nextTurnDj ? (
@@ -639,6 +685,9 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
             <div className="mb-4 inline-flex rounded-lg border border-pink-300/20 bg-pink-300/10 px-3 py-2">
               <BrandLockup size="sm" />
             </div>
+            {selectedEvent ? (
+              <p className="mb-3 text-sm font-black text-cyan-100">{selectedEvent.name}</p>
+            ) : null}
             <div className="mb-4 hidden items-center gap-2 rounded-full border border-pink-300/30 bg-pink-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-pink-100">
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               FloorVibes
@@ -744,9 +793,22 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
                   {djs.map((dj) => (
                     <option key={dj.id} value={dj.id}>
                       {dj.name}
+                      {dj.accepts_requests ? "" : ` (${copy.requestPaused})`}
                     </option>
                   ))}
                 </Select>
+                {selectedDj ? (
+                  <p
+                    className={[
+                      "text-xs font-black",
+                      canSelectedDjAcceptRequests ? "text-cyan-100" : "text-pink-100",
+                    ].join(" ")}
+                  >
+                    {canSelectedDjAcceptRequests
+                      ? copy.acceptingRequests
+                      : copy.requestPausedDescription}
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-2">
@@ -854,6 +916,7 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
                   !songTitle.trim() ||
                   !audienceName.trim() ||
                   !selectedDj ||
+                  !canSelectedDjAcceptRequests ||
                   isSending ||
                   isCoolingDown
                 }
@@ -992,9 +1055,98 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
                       <Clock3 className="h-4 w-4 text-cyan-100" aria-hidden="true" />
                       {formatTimelineRange(slot)}
                     </p>
+                    {dj ? (
+                      <p
+                        className={[
+                          "mt-2 w-fit rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]",
+                          dj.accepts_requests
+                            ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-100"
+                            : "border-pink-300/25 bg-pink-300/10 text-pink-100",
+                        ].join(" ")}
+                      >
+                        {dj.accepts_requests ? copy.acceptingRequests : copy.requestPaused}
+                      </p>
+                    ) : null}
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isGuideOpen ? (
+        <div className="fixed inset-0 z-30 flex items-end bg-black/75 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-md overflow-hidden rounded-lg border border-white/10 bg-[#080310] shadow-2xl shadow-black/60">
+            <div className="h-1 bg-[linear-gradient(90deg,#fb5ab8,#38dfff,#a855f7)]" />
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <BrandLockup size="sm" />
+                  <h2 className="mt-4 text-2xl font-black text-white">{copy.guideTitle}</h2>
+                  <p className="mt-2 text-sm font-bold leading-6 text-slate-300">
+                    {copy.guideSubtitle}
+                  </p>
+                </div>
+                <button
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/10 hover:text-white"
+                  onClick={closeGuide}
+                  type="button"
+                >
+                  <X className="h-5 w-5" aria-hidden="true" />
+                  <span className="sr-only">Close</span>
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {[
+                  {
+                    icon: AudioWaveform,
+                    title: copy.guideStepOneTitle,
+                    body: copy.guideStepOneBody,
+                    className: "text-pink-100 bg-pink-300/10 border-pink-300/20",
+                  },
+                  {
+                    icon: Search,
+                    title: copy.guideStepTwoTitle,
+                    body: copy.guideStepTwoBody,
+                    className: "text-cyan-100 bg-cyan-300/10 border-cyan-300/20",
+                  },
+                  {
+                    icon: Send,
+                    title: copy.guideStepThreeTitle,
+                    body: copy.guideStepThreeBody,
+                    className: "text-purple-100 bg-purple-300/10 border-purple-300/20",
+                  },
+                ].map((step) => {
+                  const StepIcon = step.icon;
+                  return (
+                    <div
+                      className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3"
+                      key={step.title}
+                    >
+                      <div
+                        className={[
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border",
+                          step.className,
+                        ].join(" ")}
+                      >
+                        <StepIcon className="h-5 w-5" aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-white">{step.title}</p>
+                        <p className="mt-1 text-sm font-bold leading-5 text-slate-400">
+                          {step.body}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Button className="mt-5 w-full" onClick={closeGuide} type="button">
+                {copy.guideStart}
+              </Button>
             </div>
           </div>
         </div>

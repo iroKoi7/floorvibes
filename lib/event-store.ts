@@ -60,6 +60,7 @@ function defaultDjs(): DjRow[] {
     event_id: "mock-event-floorvibes",
     created_at: new Date().toISOString(),
     name,
+    accepts_requests: true,
     is_active: true,
     sort_order: index,
   }));
@@ -91,7 +92,14 @@ function readMockEvents() {
 }
 
 function readMockDjs() {
-  return readMockRows(MOCK_DJS_KEY, defaultDjs());
+  return normalizeDjs(readMockRows<DjRow>(MOCK_DJS_KEY, defaultDjs()));
+}
+
+function normalizeDjs(rows: DjRow[]) {
+  return rows.map((dj) => ({
+    ...dj,
+    accepts_requests: dj.accepts_requests ?? true,
+  }));
 }
 
 function readMockTimelineSlots() {
@@ -188,7 +196,7 @@ export async function getDjsForEvent(eventId: string, includeInactive = false) {
     if (!includeInactive) query = query.eq("is_active", true);
 
     const { data, error } = await query;
-    return { data: data ?? [], errorMessage: error?.message ?? null };
+    return { data: normalizeDjs(data ?? []), errorMessage: error?.message ?? null };
   }
 
   return {
@@ -258,6 +266,7 @@ export async function createDj(dj: DjInsert) {
     event_id: dj.event_id,
     created_at: new Date().toISOString(),
     name: dj.name,
+    accepts_requests: dj.accepts_requests ?? true,
     is_active: dj.is_active ?? true,
     sort_order: dj.sort_order ?? djs.length,
   };

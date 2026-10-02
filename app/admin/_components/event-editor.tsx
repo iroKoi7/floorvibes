@@ -230,6 +230,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
         event_id: eventId ?? "",
         created_at: new Date().toISOString(),
         name,
+        accepts_requests: true,
         is_active: true,
         sort_order: current.length,
         isDraft: true,
@@ -365,6 +366,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
         const { errorMessage } = await createDj({
           event_id: savedEvent.id,
           name: dj.name.trim(),
+          accepts_requests: dj.accepts_requests,
           sort_order: index,
           is_active: true,
         });
@@ -383,6 +385,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
       } else {
         const { errorMessage } = await updateDj(dj.id, {
           name: dj.name.trim(),
+          accepts_requests: dj.accepts_requests,
           sort_order: index,
           is_active: true,
         });
@@ -615,7 +618,7 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
 
               {visibleDjs.map((dj) => (
                 <div
-                  className="grid gap-2 rounded-lg border border-white/10 bg-[#12091f]/70 p-3 sm:grid-cols-[1fr_auto]"
+                  className="grid gap-2 rounded-lg border border-white/10 bg-[#12091f]/70 p-3 sm:grid-cols-[1fr_auto_auto]"
                   key={dj.id}
                 >
                   <Input
@@ -635,6 +638,25 @@ export function EventEditor({ eventId, mode }: EventEditorProps) {
                       }
                     }}
                   />
+                  <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 sm:justify-start">
+                    <input
+                      checked={dj.accepts_requests}
+                      className="h-4 w-4 accent-cyan-300"
+                      onChange={(event) =>
+                        setDjs((current) =>
+                          current.map((row) =>
+                            row.id === dj.id
+                              ? { ...row, accepts_requests: event.target.checked }
+                              : row,
+                          ),
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span className={dj.accepts_requests ? "text-cyan-100" : "text-slate-400"}>
+                      {dj.accepts_requests ? "Accepting" : "Paused"}
+                    </span>
+                  </label>
                   <Button
                     className="min-h-9 px-3 py-2 text-xs"
                     type="button"

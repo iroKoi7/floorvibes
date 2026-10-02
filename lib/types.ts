@@ -39,6 +39,7 @@ export type DjRow = {
   event_id: string;
   created_at: string;
   name: string;
+  accepts_requests: boolean;
   is_active: boolean;
   sort_order: number;
 };
@@ -46,6 +47,7 @@ export type DjRow = {
 export type DjInsert = {
   event_id: string;
   name: string;
+  accepts_requests?: boolean;
   is_active?: boolean;
   sort_order?: number;
 };
