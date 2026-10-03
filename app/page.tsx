@@ -1084,7 +1084,7 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
                 <div>
                   <BrandLockup size="sm" />
                   <h2 className="mt-4 text-2xl font-black text-white">{copy.guideTitle}</h2>
-                  <p className="mt-2 text-sm font-bold leading-6 text-slate-300">
+                  <p className="mt-2 whitespace-pre-line text-sm font-bold leading-6 text-slate-300">
                     {copy.guideSubtitle}
                   </p>
                 </div>
@@ -1135,7 +1135,7 @@ export function AudiencePage({ fixedEventSlug, demoMode = false }: AudiencePageP
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-black text-white">{step.title}</p>
-                        <p className="mt-1 text-sm font-bold leading-5 text-slate-400">
+                        <p className="mt-1 whitespace-pre-line text-sm font-bold leading-5 text-slate-400">
                           {step.body}
                         </p>
                       </div>

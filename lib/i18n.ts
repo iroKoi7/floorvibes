@@ -23,13 +23,15 @@ export const text = {
     acceptingRequests: "Accepting requests",
     floorVibesLive: "FloorVibes Live",
     guideTitle: "How to use FloorVibes",
-    guideSubtitle: "Send a song only when something comes to mind. No pressure.",
-    guideStepOneTitle: "Check the DJ",
-    guideStepOneBody: "The current DJ and timeline are shown at the top.",
-    guideStepTwoTitle: "Search or type",
-    guideStepTwoBody: "Pick a song from suggestions, or type freely.",
-    guideStepThreeTitle: "Send and enjoy",
-    guideStepThreeBody: "The DJ may use requests as inspiration during the set.",
+    guideSubtitle: "Send a request to the DJ in just a few taps.",
+    guideStepOneTitle: "Choose a DJ",
+    guideStepOneBody:
+      "Choose which DJ to send your request to. The current DJ and timeline are shown at the top.",
+    guideStepTwoTitle: "Enter your request",
+    guideStepTwoBody:
+      "Type any song, artist, or genre you like. Song titles can also be selected from suggestions.",
+    guideStepThreeTitle: "Send your request!",
+    guideStepThreeBody: "Your request will be sent to the DJ. They might play it during the set.",
     guideStart: "Got it",
     loadingRequests: "Loading requests...",
     localMode:
@@ -73,13 +75,16 @@ export const text = {
     acceptingRequests: "リクエスト受付中",
     floorVibesLive: "FloorVibes Live",
     guideTitle: "FloorVibesの使い方",
-    guideSubtitle: "聴きたい曲が浮かんだ時だけ、気軽に送ってください。",
-    guideStepOneTitle: "DJを確認",
-    guideStepOneBody: "今のDJとタイムラインは画面上部で見られます。",
-    guideStepTwoTitle: "検索 or 手入力",
-    guideStepTwoBody: "候補から曲を選んでも、自由に入力してもOKです。",
-    guideStepThreeTitle: "送って楽しむ",
-    guideStepThreeBody: "DJがプレイ中の参考としてリクエストを見ることがあります。",
+    guideSubtitle: "DJへのリクエストを、カンタンに。",
+    guideStepOneTitle: "リクエストするDJを選ぶ",
+    guideStepOneBody:
+      "どのDJにリクエストするかを選びましょう。\nプレイ中のDJとタイムラインは、画面上部で確認できます。",
+    guideStepTwoTitle: "リクエストを入力",
+    guideStepTwoBody:
+      "曲名・アーティスト名・ジャンルを好きに入力しましょう！\n曲名はサジェストからも選べます。",
+    guideStepThreeTitle: "リクエストを送信！",
+    guideStepThreeBody:
+      "DJにリクエストが送信されます！\nあなたのリクエストが流れるかも！？",
     guideStart: "OK、はじめる",
     loadingRequests: "リクエストを読み込み中...",
     localMode:
